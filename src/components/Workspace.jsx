@@ -113,7 +113,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
       const isCorrect = lesson.validation(code, result.stdout);
       if (isCorrect) {
         if (!isSuccess) {
-          audioSynth.playBeep(880, 0.1); // Play high success chime
+          audioSynth.playWin(); // Play victory fanfare arpeggio
         }
         setIsSuccess(true);
       } else {

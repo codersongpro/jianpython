@@ -206,30 +206,39 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
     let isCorrect = false;
 
-    if (lessonId === 1 || lessonId === 2) {
-      // Must pop letters in spelling order
+    // 1. 단어 철자(Spelling) 순서 매칭 게임 (1, 2, 23, 25, 26, 28단계)
+    const isSpellingGame = [1, 2, 23, 25, 26, 28].includes(lessonId);
+
+    if (isSpellingGame) {
       const expectedChar = miniGame.word[targetCharIdx];
-      if (balloon.value === expectedChar) {
+      if (balloon.value.toLowerCase() === expectedChar.toLowerCase()) {
         isCorrect = true;
       }
-    } else if (lessonId === 3) {
-      // Math: pop expression that equals 12
-      if (balloon.value === "5+7") {
-        isCorrect = true;
-      }
-    } else if (lessonId === 10) {
-      // Loop: pop any star balloon
+    } 
+    // 2. 특정 정답 매칭 게임 (3, 13, 15, 21단계)
+    else if (lessonId === 3) {
+      if (balloon.value === "5+7") isCorrect = true;
+    } else if (lessonId === 13) {
+      // 15가 되는 수식은 셋 다 정답 처리
+      if (["5*3", "30/2", "10+5"].includes(balloon.value)) isCorrect = true;
+    } else if (lessonId === 15) {
+      if (balloon.value === '"호"*3' || balloon.value === "'호'*3") isCorrect = true;
+    } else if (lessonId === 21) {
+      if (balloon.value === "fruits[1]") isCorrect = true;
+    }
+    // 3. 단순 개수 터트리기 (10단계)
+    else if (lessonId === 10) {
       isCorrect = true;
     }
 
     if (isCorrect) {
-      // Correct Pop!
+      // 맞췄을 때: 계음 상승 효과음
       audioSynth.playBeep(523 + targetCharIdx * 80, 0.05);
       triggerPopParticles(balloon.x, balloon.y, balloon.color);
       
       setBalloonList((prev) => prev.map((b) => (b.id === balloon.id ? { ...b, popped: true } : b)));
 
-      if (lessonId === 1 || lessonId === 2) {
+      if (isSpellingGame) {
         const nextIdx = targetCharIdx + 1;
         setTargetCharIdx(nextIdx);
         if (nextIdx >= miniGame.word.length) {
@@ -238,7 +247,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             setGameWon(true);
           }, 400);
         }
-      } else if (lessonId === 3) {
+      } else if ([3, 13, 15, 21].includes(lessonId)) {
         setTimeout(() => {
           audioSynth.playWin();
           setGameWon(true);
@@ -254,7 +263,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         }
       }
     } else {
-      // Incorrect Pop - elastic shake
+      // 틀렸을 때: 에러 효과음
       audioSynth.playError();
       setErrorBalloonId(balloon.id);
       setTimeout(() => setErrorBalloonId(null), 600);
