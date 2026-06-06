@@ -37,6 +37,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   const [showHint, setShowHint] = useState(false);
   const [showStoryModal, setShowStoryModal] = useState(true); // 첫 진입시 스토리 팝업 기본 노출
   const [hasBeenFocused, setHasBeenFocused] = useState(false); // 처음 터치할 때 커서 이동을 제어하는 상태
+  const [showScratchCompareModal, setShowScratchCompareModal] = useState(false); // 스크래치 비교 사전 모달 표시 여부
 
   const editorRef = useRef(null);
 
@@ -70,8 +71,62 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
       setShowHint(false);
       setShowStoryModal(true); // 레슨 이동 시 마다 스토리를 다시 먼저 보여줌
       setHasBeenFocused(false); // 레슨이 바뀔 때 마다 처음 터치 상태를 리셋해요
+      setShowScratchCompareModal(false); // 비교 사전 모달 상태도 초기화해요
     }
   }, [lessonId]);
+
+  // 스크래치를 잘하는 지안이를 위해 마련된 파이썬 문법 대조 마법 사전 데이터예요!
+  const scratchCompareData = [
+    {
+      category: "🗣️ 화면에 보여주기 (말하기)",
+      scratch: "[안녕! 라고 말하기]",
+      scratchColor: "#4c97ff", // 스크래치 말하기 블록 파란색
+      python: "print(\"안녕!\")",
+      desc: "화면에 글자나 숫자를 띄워주는 파이썬의 가장 기본 주문이에요. 글자 양쪽에 큰따옴표(\"\")를 꼭 안겨주어야 해요!"
+    },
+    {
+      category: "🧮 수학 계산하기 (연산)",
+      scratch: "[ (5) + (3) ]\n[ (5) * (3) ]\n[ (10) 나누기 (3) 의 나머지 ]",
+      scratchColor: "#59c059", // 연산 초록색
+      python: "5 + 3\n5 * 3\n10 % 3",
+      desc: "수학 계산을 해요. 곱하기는 별표(*), 나누기는 슬래시(/)를 쓰고, 나머지는 퍼센트(%) 기호로 찌꺼기만 구해요!"
+    },
+    {
+      category: "📦 상자에 값 담아두기 (변수)",
+      scratch: "[ (점수) 를 (10) 으로 정하기 ]",
+      scratchColor: "#ff8c1a", // 변수 오렌지색
+      python: "score = 10",
+      desc: "score라는 이름의 보물 상자를 만들고 그 안에 숫자 10을 담아두는 파이썬의 저장 마법이에요."
+    },
+    {
+      category: "🧭 만약에~ 라면 (조건문)",
+      scratch: "[만약 < (점수) > (90) > 이라면]\n  └─ [ A 라고 말하기 ]\n[아니면]\n  └─ [ B 라고 말하기 ]",
+      scratchColor: "#ffab19", // 제어 노란색
+      python: "if score > 90:\n    print(\"A\")\nelse:\n    print(\"B\")",
+      desc: "조건을 검사해요. 파이썬은 조건 끝에 꼭 쌍점(:)을 적고, 조건에 맞아 실행할 문장은 줄을 맞춰 띄어쓰기(Tab) 해줘요!"
+    },
+    {
+      category: "🌀 뱅글뱅글 반복하기 (반복문)",
+      scratch: "[ (5) 번 반복하기 ]\n  └─ [ ★ 라고 말하기 ]",
+      scratchColor: "#ffab19", // 제어 노란색
+      python: "for i in range(5):\n    print(\"★\")",
+      desc: "같은 행동을 정해진 횟수만큼 반복해요. range(5)는 기계를 5바퀴 뱅글뱅글 돌려 별을 5개 그려냅니다."
+    },
+    {
+      category: " Basket 장난감 바구니 (리스트)",
+      scratch: "[ (과일) 리스트 만들기 ]\n[ (과일) 의 (1) 번째 항목 ]",
+      scratchColor: "#ff6680", // 리스트/데이터 분홍색
+      python: "fruits = [\"사과\", \"바나나\"]\nfruits[0]",
+      desc: "여러 장난감을 바구니에 모아둬요. 파이썬은 특이하게 1번이 아닌 0번 방부터 보물의 숫자를 센답니다! (0번 방의 비밀)"
+    },
+    {
+      category: "🛠️ 나만의 블록 만들기 (함수)",
+      scratch: "[ (인사하기) 정의하기 ]\n  └─ [ 안녕! 라고 말하기 ]",
+      scratchColor: "#9966ff", // 내블록 보라색
+      python: "def greeting():\n    print(\"안녕!\")",
+      desc: "def는 '정의하다(define)'에서 왔어요. 나만의 마법 명령어 블록을 새로 만드는 설계도 작성이랍니다."
+    }
+  ];
 
   // 지안이가 처음 코드창을 탭(터치)했을 때 주석 뒤쪽으로 커서를 자동으로 보내주는 마법 기능이에요!
   const handleEditorFocus = (e) => {
@@ -328,6 +383,115 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
         </div>
       )}
 
+      {/* 2. 스크래치 vs 파이썬 1:1 비교 사전 모달 팝업 */}
+      {showScratchCompareModal && (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: "rgba(6, 7, 20, 0.92)",
+          backdropFilter: "blur(12px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 95
+        }}>
+          <div className="glass-panel" style={{
+            padding: "36px 40px",
+            width: "95%",
+            maxWidth: "880px",
+            maxHeight: "85vh",
+            overflowY: "auto",
+            borderWidth: "2.5px",
+            borderColor: "rgba(189, 0, 255, 0.45)",
+            boxShadow: "0 0 30px rgba(189, 0, 255, 0.25)"
+          }}>
+            {/* Modal Header */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "2.4rem" }}>🐱⚡</span>
+                <div>
+                  <h3 style={{ fontSize: "2rem", color: "#e879f9", margin: 0 }}>지안이의 스크래치 vs 파이썬 마법 사전</h3>
+                  <p style={{ color: "#a5b4fc", fontSize: "0.95rem", margin: "2px 0 0 0" }}>스크래치 블록 조립이 파이썬 글자 마법으로 변하는 매핑 규칙이에요!</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  audioSynth.playBeep(600, 0.08);
+                  setShowScratchCompareModal(false);
+                }}
+                className="btn-cosmic btn-outline"
+                style={{ padding: "8px 16px", fontSize: "0.95rem", color: "#ffffff", borderColor: "#cbd5e1" }}
+              >
+                사전 닫기
+              </button>
+            </div>
+
+            {/* Compare Table */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px", marginTop: "10px" }}>
+              {scratchCompareData.map((item, idx) => (
+                <div key={idx} style={{
+                  background: "rgba(10, 11, 27, 0.6)",
+                  border: "1.5px solid rgba(255,255,255,0.06)",
+                  borderRadius: "18px",
+                  padding: "18px 24px",
+                  display: "grid",
+                  gridTemplateColumns: "1.2fr 1fr 1fr",
+                  gap: "20px",
+                  alignItems: "center"
+                }}>
+                  {/* Category & Explanation */}
+                  <div>
+                    <strong style={{ display: "block", color: "white", fontSize: "1.1rem", marginBottom: "4px" }}>{item.category}</strong>
+                    <p style={{ color: "#9ca3af", fontSize: "0.88rem", lineHeight: "1.4", margin: 0 }}>{item.desc}</p>
+                  </div>
+
+                  {/* Scratch Block Representer */}
+                  <div style={{ display: "flex", justifyContent: "center" }}>
+                    <div style={{
+                      background: item.scratchColor,
+                      color: "white",
+                      padding: "10px 16px",
+                      borderRadius: "10px",
+                      fontFamily: "var(--font-ui)",
+                      fontWeight: "bold",
+                      fontSize: "0.95rem",
+                      boxShadow: "0 4px 6px rgba(0,0,0,0.25)",
+                      borderLeft: "6px solid rgba(0,0,0,0.15)",
+                      whiteSpace: "pre-line",
+                      lineHeight: "1.4",
+                      textAlign: "left",
+                      width: "100%",
+                      maxWidth: "200px"
+                    }}>
+                      {item.scratch}
+                    </div>
+                  </div>
+
+                  {/* Python Code block */}
+                  <div style={{
+                    background: "#050614",
+                    border: "1px solid rgba(0,240,255,0.15)",
+                    borderRadius: "10px",
+                    padding: "10px 16px",
+                    fontFamily: "monospace",
+                    fontSize: "1.05rem",
+                    color: "var(--color-neon-cyan)",
+                    boxShadow: "0 0 10px rgba(0,240,255,0.05)",
+                    whiteSpace: "pre-line",
+                    lineHeight: "1.4"
+                  }}>
+                    {item.python}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Workspace Header */}
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <button onClick={onBack} className="btn-cosmic btn-outline" style={{ padding: "10px 20px", fontSize: "1rem" }}>
@@ -461,24 +625,45 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
                 🛸 이번 임무 임무지침
               </h3>
               
-              {/* Integrated Hint Toggle Button */}
-              <button 
-                onClick={() => {
-                  audioSynth.playBeep(900, 0.05);
-                  setShowHint(!showHint);
-                }}
-                className={`btn-cosmic btn-outline ${showHint ? "active-hint-btn" : ""}`}
-                style={{
-                  padding: "6px 14px",
-                  fontSize: "0.9rem",
-                  height: "auto",
-                  borderColor: showHint ? "#ffd700" : "var(--color-panel-border)",
-                  color: showHint ? "#ffd700" : "#ffffff",
-                  background: showHint ? "rgba(255, 215, 0, 0.08)" : "none"
-                }}
-              >
-                <HelpCircle size={15} /> {showHint ? "힌트 접기" : "힌트 보기"}
-              </button>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {/* Integrated Scratch vs Python Dictionary Toggle Button */}
+                <button 
+                  onClick={() => {
+                    audioSynth.playBeep(800, 0.05);
+                    setShowScratchCompareModal(true);
+                  }}
+                  className="btn-cosmic btn-outline"
+                  style={{
+                    padding: "6px 14px",
+                    fontSize: "0.9rem",
+                    height: "auto",
+                    borderColor: "#bd00ff",
+                    color: "#e879f9",
+                    background: "rgba(189, 0, 255, 0.06)"
+                  }}
+                >
+                  🐱 스크래치 사전
+                </button>
+
+                {/* Integrated Hint Toggle Button */}
+                <button 
+                  onClick={() => {
+                    audioSynth.playBeep(900, 0.05);
+                    setShowHint(!showHint);
+                  }}
+                  className={`btn-cosmic btn-outline ${showHint ? "active-hint-btn" : ""}`}
+                  style={{
+                    padding: "6px 14px",
+                    fontSize: "0.9rem",
+                    height: "auto",
+                    borderColor: showHint ? "#ffd700" : "var(--color-panel-border)",
+                    color: showHint ? "#ffd700" : "#ffffff",
+                    background: showHint ? "rgba(255, 215, 0, 0.08)" : "none"
+                  }}
+                >
+                  <HelpCircle size={15} /> {showHint ? "힌트 접기" : "힌트 보기"}
+                </button>
+              </div>
             </div>
 
             <ul style={{ listStyleType: "none", display: "flex", flexDirection: "column", gap: "12px", padding: 0, margin: 0 }}>
