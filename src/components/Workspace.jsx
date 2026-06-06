@@ -75,6 +75,40 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
     }
   }, [lessonId]);
 
+  // 각 레벨별로 지안이가 현재 배우는 파이썬 주문이 스크래치의 어떤 블록과 1:1로 매핑되는지 보여주는 지도사전이에요!
+  const scratchRelationMap = {
+    1: { block: "[안녕! 라고 말하기]", color: "#4c97ff", text: "스크래치에서 고양이가 말하게 하던 파란색 말하기 블록이에요!" },
+    2: { block: "[안녕! 라고 말하기]", color: "#4c97ff", text: "말하기 블록에 글자나 숫자를 바꿔 넣어 보여주는 것과 똑같아요!" },
+    3: { block: "[ (5) + (3) ] 연산", color: "#59c059", text: "초록색 연산 방에 들어있던 더하기(+), 빼기(-) 계산 블록과 똑같아요!" },
+    4: { block: "[ (score) 를 (10) 으로 정하기 ]", color: "#ff8c1a", text: "주황색 변수 카테고리의 [변수 값을 정하기] 블록과 똑같아요!" },
+    5: { block: "[ (안녕) 과 (지안) 결합하기 ]", color: "#59c059", text: "글자 조각을 풀칠하듯 길게 이어붙이는 [글자 결합하기] 연산 블록과 똑같아요!" },
+    6: { block: "[ (대답) 을 (음식) 으로 정하기 ]", color: "#ff8c1a", text: "입력창에서 지안이가 대답한 글자를 변수 상자에 대입해 보관하는 것과 같아요!" },
+    7: { block: "[ (10) > (5) ] 연산", color: "#59c059", text: "크기를 비교해서 참(True)과 거짓(False)을 판단하는 비교 연산 블록과 똑같아요!" },
+    8: { block: "[만약 <> 이라면] 제어", color: "#ffab19", text: "노란색 제어 카테고리의 [만약 조건이 참이라면] 실행하는 블록과 똑같아요!" },
+    9: { block: "[만약 <> 이라면 / 아니면] 제어", color: "#ffab19", text: "조건이 맞을 때와 맞지 않을 때 두 갈래로 나뉘어 행동하는 제어 블록과 같아요!" },
+    10: { block: "[ (10) 번 반복하기 ] 제어", color: "#ffab19", text: "정해진 횟수만큼 안쪽 명령을 뱅글뱅글 반복시키는 루프 제어 블록과 똑같아요!" },
+    11: { block: "[ magic.get_weather() ] 센서", color: "#4a90e2", text: "날씨나 외부 값을 알아내는 하늘색 센서(감지) 블록과 똑같아요!" },
+    12: { block: "[ magic.show_cat() ] 형태", color: "#9966ff", text: "스프라이트의 모양을 바꾸거나 화면에 그림을 그리는 보라색 형태 블록과 같아요!" },
+    13: { block: "[ (5) * (3) ] 연산", color: "#59c059", text: "더 정밀한 계산을 하는 초록색 곱하기(*) 및 나누기(/) 연산 블록과 똑같아요!" },
+    14: { block: "[ (10) 나누기 (3) 의 나머지 ]", color: "#59c059", text: "수학 계산 후 찌꺼기(나머지) 값만 구하는 초록색 나머지 연산 블록과 똑같아요!" },
+    15: { block: "[ (호) 과 (호) 결합하기 ]", color: "#59c059", text: "글자를 곱해서 풀풀 이어 붙이는 도장 찍기 연산 블록과 같아요!" },
+    16: { block: "[ < > 가 아니다 ] 연산", color: "#59c059", text: "조건이 거짓일 때 작동하는 초록색 논리 부정(~가 아니다) 블록과 같아요!" },
+    17: { block: "[ < > 그리고 < > ] 연산", color: "#59c059", text: "두 개의 조건이 둘 다 맞아야 통과하는 [~ 그리고 ~] 연산 블록과 똑같아요!" },
+    18: { block: "[ < > 또는 < > ] 연산", color: "#59c059", text: "둘 중에 하나만 맞아도 관문을 통과하는 [~ 또는 ~] 연산 블록과 똑같아요!" },
+    19: { block: "[만약 <> 이라면 / 아니면] 다중", color: "#ffab19", text: "제어 블록 안에 조건 블록을 여러 겹 겹쳐서 복잡한 판단을 내리는 구조와 같아요!" },
+    20: { block: "[ (과일) 리스트 만들기 ]", color: "#ff6680", text: "여러 개의 아이템을 차곡차곡 모아두는 분홍색 리스트 바구니와 똑같아요!" },
+    21: { block: "[ (과일) 의 (1) 번째 항목 ]", color: "#ff6680", text: "바구니의 순서 방 값을 가져와요. 파이썬은 0번 방부터 센다는 점만 달라요!" },
+    22: { block: "[ (과일) 의 길이 ]", color: "#ff6680", text: "바구니 속에 보물 장난감이 총 몇 개 들어있는지 알아내는 리스트 세기 블록과 같아요!" },
+    23: { block: "[ (사과) 을 (과일) 에 추가하기 ]", color: "#ff6680", text: "바구니 맨 뒤에 새 보물을 쏙 집어넣어 크기를 키우는 리스트 추가 블록과 같아요!" },
+    24: { block: "[ < > 까지 반복하기 ]", color: "#ffab19", text: "티켓이 남은 조건이 될 때까지 계속 뱅글뱅글 반복하는 제어 블록과 똑같아요!" },
+    25: { block: "[ 이 스크립트 멈추기 ]", color: "#ffab19", text: "뱅글뱅글 돌던 반복 열차에서 강제로 멈추고 튀어나오는 탈출(break) 블록과 같아요!" },
+    26: { block: "[ (인사하기) 정의하기 ]", color: "#9966ff", text: "보라색 나만의 블록 만들기 카테고리의 [블록 정의하기] 마법과 똑같아요!" },
+    27: { block: "[ (믹서기) 정의하기 (재료) ]", color: "#9966ff", text: "나만의 블록을 생성할 때 믹서기 재료(매개변수) 투입구를 만드는 것과 같아요!" },
+    28: { block: "[ (자판기) 결과값 내보내기 ]", color: "#9966ff", text: "나만의 블록이 작동한 뒤 결과 물건(return)을 자판기 밖으로 뿅 돌려보내는 마법이에요!" },
+    29: { block: "[ 리스트의 모든 항목 훑기 ]", color: "#ffab19", text: "리스트 바구니 속에 들어있는 모든 과일을 하나씩 전부 꺼내보는 반복문이에요!" },
+    30: { block: "[ 종합 연산/제어 졸업 블록 ]", color: "#ffab19", text: "지금껏 배운 조건, 반복, 연산, 리스트 블록을 총출동시켜 조립하는 졸업 작품 블록이에요!" }
+  };
+
   // 스크래치를 잘하는 지안이를 위해 마련된 파이썬 문법 대조 마법 사전 데이터예요!
   const scratchCompareData = [
     {
@@ -665,6 +699,38 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
                 </button>
               </div>
             </div>
+
+            {/* 현재 레벨에서 배우는 파이썬 주문이 스크래치 어떤 블록과 같은지 한눈에 알려주는 알림 띠 */}
+            {scratchRelationMap[lesson.id] && (
+              <div style={{
+                background: "rgba(255, 255, 255, 0.03)",
+                border: "1.5px dashed rgba(189, 0, 255, 0.25)",
+                padding: "14px 18px",
+                borderRadius: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                background: "linear-gradient(90deg, rgba(153, 102, 255, 0.05), rgba(76, 151, 255, 0.05))"
+              }}>
+                <div style={{
+                  background: scratchRelationMap[lesson.id].color,
+                  color: "white",
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  fontFamily: "var(--font-ui)",
+                  fontWeight: "bold",
+                  fontSize: "0.9rem",
+                  boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+                  borderLeft: "5px solid rgba(0,0,0,0.15)",
+                  whiteSpace: "nowrap"
+                }}>
+                  {scratchRelationMap[lesson.id].block}
+                </div>
+                <div style={{ fontSize: "0.95rem", color: "#cbd5e1", lineHeight: "1.4" }}>
+                  🤖 <strong>파이디:</strong> "{scratchRelationMap[lesson.id].text}"
+                </div>
+              </div>
+            )}
 
             <ul style={{ listStyleType: "none", display: "flex", flexDirection: "column", gap: "12px", padding: 0, margin: 0 }}>
               {lesson.instructions.map((inst, idx) => (

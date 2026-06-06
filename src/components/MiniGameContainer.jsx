@@ -7,24 +7,32 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   const lesson = lessons.find((l) => l.id === lessonId);
   const miniGame = lesson ? lesson.miniGame : null;
 
-  // Game Progress States
+  // 게임 진행 상태
   const [gameWon, setGameWon] = useState(false);
   const [score, setScore] = useState(0);
 
-  // FX States
+  // 시각 효과 상태들
   const [particles, setParticles] = useState([]);
   const [confetti, setConfetti] = useState([]);
   const [isScreenShaking, setIsScreenShaking] = useState(false);
 
-  // 1. BALLOON POP STATES
+  // 1. 풍선 터트리기 관련 상태들
   const [balloonList, setBalloonList] = useState([]);
   const [targetCharIdx, setTargetCharIdx] = useState(0);
   const [errorBalloonId, setErrorBalloonId] = useState(null);
 
-  // 2. DEFENSE STATES
-  const [enemyX, setEnemyX] = useState(100); // enemy left %
+  // [새로 추가됨] 1-1. 타이머, 패널티 및 역대 최고 기록 관련 상태들
+  const [startTime, setStartTime] = useState(null); // 게임 시작 타임스탬프
+  const [elapsedTime, setElapsedTime] = useState(0); // 경과 시간 (초 단위)
+  const [bestRecord, setBestRecord] = useState(null); // localStorage에서 불러온 역대 최단 시간 기록
+  const [isNewRecord, setIsNewRecord] = useState(false); // 이번 시도에서 최고 기록을 달성했는지 여부
+  const [isTimerRunning, setIsTimerRunning] = useState(false); // 타이머 작동 상태
+  const [penaltyActive, setPenaltyActive] = useState(false); // 오답 풍선 클릭 시 페널티 효과 트리거
+
+  // 2. 디펜스 게임 관련 상태들
+  const [enemyX, setEnemyX] = useState(100); // 적의 가로 위치 %
   const [currentEnemyIdx, setCurrentEnemyIdx] = useState(0);
-  const [turretType, setTurretType] = useState(""); // string | number
+  const [turretType, setTurretType] = useState(""); // 발사할 대포 타입 (string | number)
   const [defenseFeedback, setDefenseFeedback] = useState("바이러스를 요격할 대포를 준비하세요!");
   const [projectiles, setProjectiles] = useState([]);
   const [blasts, setBlasts] = useState([]);
@@ -32,19 +40,19 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   const [muzzleFlash, setMuzzleFlash] = useState(false);
   const [enemyHit, setEnemyHit] = useState(false);
 
-  // 3. RHYTHM STATES
-  const [noteX, setNoteX] = useState(100); // note left %
+  // 3. 리듬 게임 관련 상태들
+  const [noteX, setNoteX] = useState(100); // 노트 가로 위치 %
   const [currentBeatIdx, setCurrentBeatIdx] = useState(0);
-  const [hitFeedback, setHitFeedback] = useState(""); // PERFECT! | Miss!
+  const [hitFeedback, setHitFeedback] = useState(""); // PERFECT! | Miss! 등 판정 피드백
   const [combo, setCombo] = useState(0);
   const [comboActive, setComboActive] = useState(false);
   const [hitPulse, setHitPulse] = useState(false);
 
-  // 4. API CONNECT STATES
+  // 4. API 연결 게임 관련 상태들
   const [laserBeamActive, setLaserBeamActive] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
 
-  // Reset all states when lesson changes
+  // 레슨이 변경될 때 모든 상태 초기화
   useEffect(() => {
     setGameWon(false);
     setScore(0);
@@ -70,14 +78,28 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setApiConnected(false);
     setDefenseFeedback("바이러스를 요격할 대포를 준비하세요!");
 
+    // [새로 추가됨] 타이머 및 기록 상태 리셋
+    setStartTime(null);
+    setElapsedTime(0);
+    setIsNewRecord(false);
+    setIsTimerRunning(false);
+    setPenaltyActive(false);
+
     if (miniGame) {
       if (miniGame.type === "balloon-pop") {
+        // localStorage에서 해당 레슨의 기존 최고 기록 불러오기
+        const savedBest = localStorage.getItem(`jianpython_lesson_${lessonId}_best_time`);
+        if (savedBest) {
+          setBestRecord(parseFloat(savedBest));
+        } else {
+          setBestRecord(null);
+        }
         initializeBalloons();
       }
     }
   }, [lessonId, miniGame]);
 
-  // Handle Confetti Celebration on Game Won
+  // 게임 승리 시 축하 폭죽(Confetti) 효과
   useEffect(() => {
     if (gameWon) {
       const colors = ["#ff007f", "#00f0ff", "#ffd700", "#bd00ff", "#10b981", "#ff4500"];
@@ -94,27 +116,114 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }
   }, [gameWon]);
 
-  // INITIALIZE BALLOON POP
+  // [새로 추가됨] 실시간으로 흐르는 시간 계산 (타이머)
+  useEffect(() => {
+    if (!isTimerRunning || gameWon || !startTime) return;
+
+    const timerInterval = setInterval(() => {
+      // 시작 시간으로부터 경과된 초를 계산하여 업데이트 (50ms 단위)
+      const currentElapsed = (Date.now() - startTime) / 1000;
+      // 음수 방지 처리
+      setElapsedTime(currentElapsed < 0 ? 0 : currentElapsed);
+    }, 50);
+
+    return () => clearInterval(timerInterval);
+  }, [isTimerRunning, gameWon, startTime]);
+
+  // 풍선 터트리기 초기화 (정답 풍선 + 가짜 방해 풍선 혼합)
   const initializeBalloons = () => {
+    const isSpellingGame = [1, 2, 23, 25, 26, 28].includes(lessonId);
     const rawBalloons = miniGame.balloons || [];
-    const colorPalette = ["#ff007f", "#00f0ff", "#ffd700", "#bd00ff", "#10b981"];
-    const items = rawBalloons.map((val, idx) => ({
-      id: `${val}-${idx}-${Math.random()}`,
+    
+    // 1. 진짜 정답 풍선들 생성
+    const correctItems = rawBalloons.map((val, idx) => ({
+      id: `correct-${val}-${idx}-${Math.random()}`,
       value: val,
-      color: colorPalette[idx % colorPalette.length],
-      x: 15 + idx * (70 / Math.max(1, rawBalloons.length - 1)), // space horizontally
-      y: 20 + Math.random() * 30, // random height
-      popped: false,
-      speed: 0.4 + Math.random() * 0.4,
-      direction: Math.random() > 0.5 ? 1 : -1,
-      windPhase: Math.random() * 100, // 바람에 흔들릴 페이즈 무작위 생성
-      windSpeed: 0.02 + Math.random() * 0.03 // 바람 속도
+      isFake: false,
+      popped: false
     }));
-    setBalloonList(items);
+
+    // 2. 레슨별 맞춤형 방해 풍선(오답) 생성
+    let fakeValues = [];
+    if (isSpellingGame) {
+      // 단어 철자에 포함되지 않은 다른 알파벳 3개 추출
+      const alphabet = "abcdefghijklmnopqrstuvwxyz";
+      const wordChars = miniGame.word.toLowerCase().split("");
+      const candidates = alphabet.split("").filter(c => !wordChars.includes(c));
+      for (let i = 0; i < 3; i++) {
+        if (candidates.length > 0) {
+          const randIdx = Math.floor(Math.random() * candidates.length);
+          fakeValues.push(candidates[randIdx]);
+          // 한 번 고른 후보는 중복 방지를 위해 삭제
+          candidates.splice(randIdx, 1);
+        }
+      }
+    } else if (lessonId === 3) {
+      // 수식 더하기/빼기 방해 풍선
+      fakeValues = ["4+6", "12-3", "8+1"];
+    } else if (lessonId === 10) {
+      // 별 그리기 방해 풍선 (터트리면 안 되는 해골이나 폭탄)
+      fakeValues = ["💀", "💣", "🚫"];
+    } else if (lessonId === 13) {
+      // 곱셈 수식 방해 풍선 (15가 아닌 오답들)
+      fakeValues = ["5*2", "20/4", "10+4"];
+    } else if (lessonId === 15) {
+      // 문자열 반복 방해 풍선
+      fakeValues = ['"호"*4', '"호호호"*2', '"호"-3'];
+    } else if (lessonId === 21) {
+      // 리스트 인덱싱 방해 풍선
+      fakeValues = ["fruits[3]", "fruits[-1]", "fruits[99]"];
+    } else {
+      fakeValues = ["x", "z", "q"];
+    }
+
+    // 가짜 풍선 데이터 생성
+    const fakeItems = fakeValues.map((val, idx) => ({
+      id: `fake-${val}-${idx}-${Math.random()}`,
+      value: val,
+      isFake: true,
+      popped: false
+    }));
+
+    // 진짜와 가짜를 한 바구니에 넣고 무작위 셔플 (Fisher-Yates 알고리즘)
+    const allItems = [...correctItems, ...fakeItems];
+    for (let i = allItems.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allItems[i], allItems[j]] = [allItems[j], allItems[i]];
+    }
+
+    // 화면 내에 겹치지 않고 골고루 둥실둥실 떠오르도록 속성과 위치 부여
+    const colorPalette = ["#ff007f", "#00f0ff", "#ffd700", "#bd00ff", "#10b981", "#ff7f00", "#a855f7"];
+    const finalItems = allItems.map((item, idx) => {
+      let color = colorPalette[idx % colorPalette.length];
+      // 방해 별 풍선(해골/폭탄 등)은 경고 느낌의 빨간색으로 통일하여 스릴 강조
+      if (item.isFake && (item.value === "💀" || item.value === "💣" || item.value === "🚫")) {
+        color = "#ef4444";
+      }
+      return {
+        ...item,
+        color,
+        // 가로 영역에 비례하여 균등 분배 후 바람 효과 추가
+        x: 10 + idx * (80 / Math.max(1, allItems.length - 1)),
+        y: 15 + Math.random() * 35, // 세로 고도 무작위
+        speed: 0.3 + Math.random() * 0.4,
+        direction: Math.random() > 0.5 ? 1 : -1,
+        windPhase: Math.random() * 100, // 흔들림 고유 위상
+        windSpeed: 0.02 + Math.random() * 0.03 // 흔들림 속도
+      };
+    });
+
+    setBalloonList(finalItems);
     setTargetCharIdx(0);
+
+    // [새로 추가됨] 풍선 띄워짐과 동시에 타이머 개시
+    setStartTime(Date.now());
+    setElapsedTime(0);
+    setIsTimerRunning(true);
+    setIsNewRecord(false);
   };
 
-  // BALLOON MOVEMENT LOOP
+  // 풍선 위아래 흔들림 및 둥실둥실 움직임 루프
   useEffect(() => {
     if (!miniGame || miniGame.type !== "balloon-pop" || gameWon) return;
 
@@ -124,16 +233,16 @@ export default function MiniGameContainer({ lessonId, onClose }) {
           let nextY = b.y + b.speed * b.direction;
           let nextDir = b.direction;
 
-          // bounce boundaries
-          if (nextY > 70) {
-            nextY = 70;
+          // 경계 닿았을 때 통통 튕기는 애니메이션 구현
+          if (nextY > 72) {
+            nextY = 72;
             nextDir = -1;
-          } else if (nextY < 10) {
-            nextY = 10;
+          } else if (nextY < 8) {
+            nextY = 8;
             nextDir = 1;
           }
 
-          // 프레임마다 바람 흔들림 각도(windPhase) 누적 업데이트
+          // 바람에 살랑이는 페이즈 업데이트
           const nextPhase = (b.windPhase || 0) + (b.windSpeed || 0.03);
 
           return { ...b, y: nextY, direction: nextDir, windPhase: nextPhase };
@@ -144,51 +253,49 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     return () => clearInterval(interval);
   }, [miniGame, gameWon]);
 
-  // CODE DEFENSE LOOP (Move enemy left)
+  // 디펜스 게임 바이러스 행진 루프 (왼쪽으로 돌진)
   useEffect(() => {
     if (!miniGame || miniGame.type !== "code-defense" || gameWon || enemyHit) return;
 
     const interval = setInterval(() => {
       setEnemyX((x) => {
         if (x <= 20) {
-          // Reached Pydi's base!
           audioSynth.playError();
           setDefenseFeedback("🤖 앗! 바이러스가 보호막에 닿았어요. 안전 차단 후 뒤로 재소환합니다!");
           return 100;
         }
-        return x - 1.2; // slow march left
+        return x - 1.2;
       });
     }, 45);
 
     return () => clearInterval(interval);
   }, [miniGame, gameWon, currentEnemyIdx, enemyHit]);
 
-  // RHYTHM NOTE LOOP (Move note left)
+  // 리듬 게임 판정 노트 흐름 루프 (왼쪽으로 질주)
   useEffect(() => {
     if (!miniGame || miniGame.type !== "rhythm-beat" || gameWon) return;
 
     const interval = setInterval(() => {
       setNoteX((x) => {
         if (x <= 5) {
-          // Missed note goes off screen
           setHitFeedback("놓쳤어요! 😮");
-          setCombo(0); // combo breaks
+          setCombo(0);
           setTimeout(() => setHitFeedback(""), 800);
           return 100;
         }
-        return x - 2; // steady rhythm speed
+        return x - 2;
       });
     }, 40);
 
     return () => clearInterval(interval);
   }, [miniGame, gameWon, currentBeatIdx]);
 
-  // Trigger popping particles (24 particles max for ultimate pop juice!)
+  // 파티클(풍선 터진 파편) 튀기는 물리 이펙트 생성
   const triggerPopParticles = (x, y, color) => {
-    const count = 24; // 12개에서 24개로 증강
+    const count = 24; // 풍성한 시각 효과를 위해 파티클 수 24개 유지
     const newParticles = Array.from({ length: count }).map((_, i) => {
       const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
-      const distance = 55 + Math.random() * 85; // 퍼지는 반경 확대
+      const distance = 55 + Math.random() * 85;
       const tx = Math.cos(angle) * distance;
       const ty = Math.sin(angle) * distance;
       return {
@@ -198,7 +305,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         color,
         tx: `${tx}px`,
         ty: `${ty}px`,
-        size: 4 + Math.random() * 8 // 입자 크기 다양화
+        size: 4 + Math.random() * 8
       };
     });
     setParticles((prev) => [...prev, ...newParticles]);
@@ -207,11 +314,55 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 600);
   };
 
+  // [새로 추가됨] 미니게임 클리어 성공 처리 헬퍼 함수
+  const handleGameSuccess = (finalTargetIdx = targetCharIdx) => {
+    setIsTimerRunning(false);
+    // 현재 시각 기준 최종 경과된 밀리초를 초 단위로 픽스
+    const finalTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2));
+    setElapsedTime(finalTime);
+
+    const recordKey = `jianpython_lesson_${lessonId}_best_time`;
+    const savedBest = localStorage.getItem(recordKey);
+    
+    // 역대 기록이 없거나 이번 기록이 더 빠른 경우 신기록 갱신
+    if (!savedBest || finalTime < parseFloat(savedBest)) {
+      localStorage.setItem(recordKey, finalTime.toString());
+      setBestRecord(finalTime);
+      setIsNewRecord(true);
+    }
+
+    setTimeout(() => {
+      audioSynth.playWin();
+      setGameWon(true);
+    }, 400);
+  };
+
   // ===================== GAME ACTIONS =====================
 
-  // 1. Balloon Click
+  // 1. 풍선 터트리기 클릭 핸들러
   const handleBalloonClick = (balloon) => {
     if (balloon.popped || gameWon || errorBalloonId) return;
+
+    // [방해 풍선 클릭 처리]: 페널티(시간 지연)와 에러 알림
+    if (balloon.isFake) {
+      audioSynth.playError();
+      setErrorBalloonId(balloon.id);
+      setTimeout(() => setErrorBalloonId(null), 600);
+
+      // 경과 시간을 3초 손해 보게 함 (시작 시간을 3초 전으로 후퇴시킴)
+      setStartTime((prev) => prev - 3000);
+      setPenaltyActive(true);
+      setTimeout(() => setPenaltyActive(false), 1000);
+
+      // 터지는 시각적인 파티클도 붉은색 경고 느낌으로 연출
+      const currentOffset = Math.sin(balloon.windPhase || 0) * 16;
+      const actualX = balloon.x + (currentOffset / 8.5);
+      triggerPopParticles(actualX, balloon.y, "#ef4444");
+
+      // 가짜 풍선도 화면에서 터져서 사라지도록 상태 변경
+      setBalloonList((prev) => prev.map((b) => (b.id === balloon.id ? { ...b, popped: true } : b)));
+      return;
+    }
 
     let isCorrect = false;
 
@@ -237,16 +388,15 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }
     // 3. 단순 개수 터트리기 (10단계)
     else if (lessonId === 10) {
-      isCorrect = true;
+      if (balloon.value === "★") isCorrect = true;
     }
 
     if (isCorrect) {
-      // 맞췄을 때: 계음 상승 효과음
+      // 정답 맞춤: 띵동 음계 상승 효과음
       audioSynth.playBeep(523 + targetCharIdx * 80, 0.05);
       
-      // X축 흔들림 오프셋을 구해서 실제 파티클 터지는 중심점을 계산
       const currentOffset = Math.sin(balloon.windPhase || 0) * 16;
-      const actualX = balloon.x + (currentOffset / 8.5); // CSS 너비 기준 비례 보정
+      const actualX = balloon.x + (currentOffset / 8.5);
 
       triggerPopParticles(actualX, balloon.y, balloon.color);
       
@@ -256,50 +406,40 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         const nextIdx = targetCharIdx + 1;
         setTargetCharIdx(nextIdx);
         if (nextIdx >= miniGame.word.length) {
-          setTimeout(() => {
-            audioSynth.playWin();
-            setGameWon(true);
-          }, 400);
+          handleGameSuccess(nextIdx);
         }
       } else if ([3, 13, 15, 21].includes(lessonId)) {
-        setTimeout(() => {
-          audioSynth.playWin();
-          setGameWon(true);
-        }, 400);
+        handleGameSuccess();
       } else if (lessonId === 10) {
         const nextScore = score + 1;
         setScore(nextScore);
         if (nextScore >= 3) {
-          setTimeout(() => {
-            audioSynth.playWin();
-            setGameWon(true);
-          }, 400);
+          handleGameSuccess();
         }
       }
     } else {
-      // 틀렸을 때: 에러 효과음
+      // 정답이 아니거나 순서가 맞지 않을 때
       audioSynth.playError();
       setErrorBalloonId(balloon.id);
       setTimeout(() => setErrorBalloonId(null), 600);
     }
   };
 
-  // 2. Defense Cannon Shoot
+  // 2. 디펜스 게임 대포 발사 컨트롤러
   const handleDefenseShoot = (type) => {
     if (projectiles.length > 0 || gameWon || enemyHit) return;
 
     setTurretType(type);
     setBaseRecoil(true);
-    setMuzzleFlash(true); // 대포 섬광 켜기
+    setMuzzleFlash(true);
     
     setTimeout(() => setBaseRecoil(false), 400);
-    setTimeout(() => setMuzzleFlash(false), 150); // 0.15초 뒤 섬광 자동 해제
+    setTimeout(() => setMuzzleFlash(false), 150);
 
     const enemy = miniGame.enemies[currentEnemyIdx];
     const isCorrect = enemy.type === type;
     const bulletEmoji = type === "string" ? "💬" : "🧮";
 
-    // Launch Projectile
     setProjectiles([
       {
         id: Math.random(),
@@ -310,18 +450,14 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     ]);
     audioSynth.playLaser();
 
-    // On Impact (0.4s travel time)
     setTimeout(() => {
-      setProjectiles([]); // remove projectile
+      setProjectiles([]);
       
       if (isCorrect) {
         audioSynth.playCoin();
-        setEnemyHit(true); // 피격 상태 돌입
-        
-        // 넉백 (Knockback) 물리 효과 적용 - 우측으로 튕김
+        setEnemyHit(true);
         setEnemyX((prev) => Math.min(100, prev + 18));
 
-        // Spawn Blast explosion
         setBlasts([{ id: Math.random(), x: `${enemyX}%` }]);
         setDefenseFeedback("피융-💥 대포 발사 성공! 바이러스 넉백 후 폭발시켰습니다!");
 
@@ -344,19 +480,17 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 400);
   };
 
-  // 3. Rhythm Key Click (O or X)
+  // 3. 리듬 게임 키 판단 (O/X 클릭)
   const handleRhythmClick = (input) => {
     if (gameWon) return;
 
     const beat = miniGame.beats[currentBeatIdx];
-    
-    // Target zone coordinates (10% to 25%)
     const inZone = noteX >= 10 && noteX <= 25;
 
     if (!inZone) {
       audioSynth.playBeep(300, 0.08);
       setHitFeedback("박자가 너무 빠르거나 늦어요! ⏰");
-      setCombo(0); // break combo
+      setCombo(0);
       setTimeout(() => setHitFeedback(""), 800);
       return;
     }
@@ -367,11 +501,10 @@ export default function MiniGameContainer({ lessonId, onClose }) {
       audioSynth.playCoin();
       setHitFeedback("PERFECT! 🌟");
       
-      // Trigger Hit Pulse & Screen Shake
       setHitPulse(true);
       setIsScreenShaking(true);
       setTimeout(() => setHitPulse(false), 400);
-      setTimeout(() => setIsScreenShaking(false), 300); // 0.3초간 흔들림 유지
+      setTimeout(() => setIsScreenShaking(false), 300);
 
       const nextCombo = combo + 1;
       setCombo(nextCombo);
@@ -393,18 +526,18 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     } else {
       audioSynth.playError();
       setHitFeedback("앗! 참/거짓 판단이 틀렸어요. ❌");
-      setCombo(0); // break combo
+      setCombo(0);
       setTimeout(() => setHitFeedback(""), 800);
     }
   };
 
-  // 4. API Connect Option click
+  // 4. API 연결 주파수 가동
   const handleApiConnect = (option) => {
     if (gameWon || laserBeamActive) return;
 
     if (option.isCorrect) {
       audioSynth.playLaser();
-      setLaserBeamActive(true); // activate laser beam animation
+      setLaserBeamActive(true);
       
       setTimeout(() => {
         audioSynth.playWin();
@@ -419,12 +552,12 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   };
 
   const handleClaimBadge = () => {
-    onClose(true); // Claim badge and go back to dashboard
+    onClose(true); // 배지 획득 완료 후 대시보드 복귀
   };
 
   return (
     <div style={{ maxWidth: "850px", margin: "20px auto", padding: "20px", display: "flex", flexDirection: "column", gap: "20px", position: "relative" }}>
-      {/* Confetti Celebration */}
+      {/* 승리 축하 폭죽 가루 효과 */}
       {confetti.map((c) => (
         <div
           key={c.id}
@@ -439,7 +572,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         />
       ))}
 
-      {/* Header */}
+      {/* 헤더 패널 */}
       <header className="glass-panel" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 24px", borderColor: "rgba(255, 0, 127, 0.3)" }}>
         <div>
           <span style={{ fontSize: "0.9rem", color: "#ff007f", fontWeight: "bold" }}>
@@ -452,7 +585,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         </button>
       </header>
 
-      {/* Game Area */}
+      {/* 메인 게임 콘테이너 */}
       <section className={`glass-panel ${isScreenShaking ? "shake-animation" : ""}`} style={{
         padding: "32px",
         background: "rgba(10, 11, 27, 0.85)",
@@ -465,7 +598,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         position: "relative",
         overflow: "hidden"
       }}>
-        {/* Render Popping Particles */}
+        {/* 풍선 터지는 이펙트 입자 렌더링 */}
         {particles.map((p) => (
           <div
             key={p.id}
@@ -489,11 +622,67 @@ export default function MiniGameContainer({ lessonId, onClose }) {
               {miniGame.description}
             </p>
 
+            {/* ===================== [새로 추가됨] 풍선 게임 실시간 타이머 및 최고 기록 UI ===================== */}
+            {miniGame.type === "balloon-pop" && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                background: "rgba(5, 6, 20, 0.6)",
+                padding: "10px 24px",
+                borderRadius: "30px",
+                border: "1.5px solid rgba(0, 240, 255, 0.25)",
+                boxShadow: "0 0 15px rgba(0, 240, 255, 0.1)",
+                transition: "all 0.3s ease",
+                position: "relative"
+              }}>
+                <span style={{ color: "#a5b4fc", fontSize: "1rem", fontWeight: "bold" }}>⏱️ 지안이의 탈출 시간:</span>
+                <span style={{
+                  color: penaltyActive ? "#ef4444" : "var(--color-neon-cyan)",
+                  fontSize: "1.6rem",
+                  fontWeight: "900",
+                  fontFamily: "monospace",
+                  minWidth: "90px",
+                  textAlign: "right",
+                  textShadow: penaltyActive ? "0 0 10px #ef4444" : "0 0 10px var(--color-neon-cyan)",
+                  transition: "color 0.1s ease"
+                }}>
+                  {elapsedTime.toFixed(2)}초
+                </span>
+                
+                {/* 오답 패널티 트리거 경고 표시 */}
+                {penaltyActive && (
+                  <span style={{
+                    color: "#ef4444",
+                    fontSize: "0.95rem",
+                    fontWeight: "bold",
+                    marginLeft: "8px",
+                    animation: "shake-animation 0.3s ease",
+                    textShadow: "0 0 8px rgba(239, 68, 68, 0.7)"
+                  }}>
+                    +3초 ⚠️
+                  </span>
+                )}
+
+                {bestRecord && (
+                  <span style={{
+                    color: "#ffd700",
+                    fontSize: "0.85rem",
+                    borderLeft: "1px solid rgba(255,255,255,0.15)",
+                    paddingLeft: "14px",
+                    marginLeft: "4px"
+                  }}>
+                    🏆 최고기록: {bestRecord.toFixed(2)}초
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* ===================== GAME 1: BALLOON POP ===================== */}
             {miniGame.type === "balloon-pop" && (
               <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
-                {/* Target words builder indicators */}
-                {(lessonId === 1 || lessonId === 2) && (
+                {/* 단어 스펠링 빌더 인디케이터 (1, 2, 23, 25, 26, 28단계) */}
+                {isSpellingGame && (
                   <div style={{ display: "flex", gap: "8px", background: "rgba(0,0,0,0.3)", padding: "12px 30px", borderRadius: "16px" }}>
                     {miniGame.word.split("").map((c, i) => (
                       <span key={i} style={{
@@ -523,7 +712,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   </div>
                 )}
 
-                {/* Floating field container */}
+                {/* 풍선 둥실둥실 필드 영역 */}
                 <div style={{
                   width: "100%",
                   height: "280px",
@@ -536,7 +725,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   {balloonList.map((b) => {
                     if (b.popped) return null;
                     const isError = b.id === errorBalloonId;
-                    // X오프셋 삼각함수 바람 효과 반영
                     const currentOffset = Math.sin(b.windPhase || 0) * 16;
                     return (
                       <button
@@ -556,7 +744,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                           transition: isError ? "none" : "top 0.05s linear, left 0.05s linear"
                         }}
                       >
-                        {/* Cutest SVG Balloon */}
+                        {/* 귀여운 우주 비행선 디자인의 풍선 SVG */}
                         <svg width="70" height="95" viewBox="0 0 70 95" style={{ overflow: "visible" }}>
                           <defs>
                             <filter id={`glow-${b.id}`} x="-20%" y="-20%" width="140%" height="140%">
@@ -564,17 +752,17 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                               <feComposite in="SourceGraphic" in2="blur" operator="over" />
                             </filter>
                           </defs>
-                          {/* Balloon String */}
+                          {/* 풍선 끈 */}
                           <path d="M35,68 Q37,82 33,95" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" fill="none" />
-                          {/* Balloon Body */}
+                          {/* 풍선 본체 */}
                           <ellipse cx="35" cy="38" rx="27" ry="30" fill={b.color} style={{ filter: `url(#glow-${b.id})` }} />
-                          {/* Light Highlight */}
+                          {/* 하이라이트 광원 효과 */}
                           <ellipse cx="25" cy="26" rx="8" ry="10" fill="rgba(255,255,255,0.45)" transform="rotate(-15 25 26)" />
-                          {/* Balloon Knot */}
+                          {/* 매듭 */}
                           <polygon points="31,68 39,68 35,63" fill={b.color} />
-                          {/* Label Text */}
-                          <text x="35" y="44" fill="white" fontSize="18" fontWeight="bold" textAnchor="middle" style={{ fontFamily: "monospace", textShadow: "1px 1px 3px rgba(0,0,0,0.8)" }}>
-                            {b.value.toUpperCase()}
+                          {/* 풍선 내부 글자 */}
+                          <text x="35" y="44" fill="white" fontSize="16" fontWeight="bold" textAnchor="middle" style={{ fontFamily: "monospace", textShadow: "1px 1px 3px rgba(0,0,0,0.8)" }}>
+                            {b.value}
                           </text>
                         </svg>
                       </button>
@@ -587,7 +775,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             {/* ===================== GAME 2: CODE DEFENSE ===================== */}
             {miniGame.type === "code-defense" && (
               <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "20px", alignItems: "center" }}>
-                {/* 2D Defense Lane */}
                 <div style={{
                   width: "100%",
                   height: "220px",
@@ -597,10 +784,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   position: "relative",
                   overflow: "hidden"
                 }}>
-                  {/* Laser runway line */}
                   <div className="defense-runway" />
 
-                  {/* Left Player Space Base */}
                   <div className={`defense-base-recoil`} style={{
                     position: "absolute",
                     left: "20px",
@@ -617,7 +802,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     <span style={{ fontSize: "0.8rem", color: "#00f0ff", background: "rgba(0,240,255,0.1)", padding: "2px 8px", borderRadius: "10px" }}>방어 기지</span>
                   </div>
 
-                  {/* Turret Muzzle Flash Effect */}
                   {muzzleFlash && (
                     <div style={{
                       position: "absolute",
@@ -634,7 +818,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     }} />
                   )}
 
-                  {/* Live Turret Projectiles */}
                   {projectiles.map((p) => (
                     <div
                       key={p.id}
@@ -648,7 +831,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     </div>
                   ))}
 
-                  {/* Explosion Blast effects */}
                   {blasts.map((b) => (
                     <div
                       key={b.id}
@@ -657,7 +839,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     />
                   ))}
 
-                  {/* Marching Virus Monster */}
                   <div style={{
                     position: "absolute",
                     left: `${enemyX}%`,
@@ -692,7 +873,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   </div>
                 </div>
 
-                {/* Status message */}
                 <div style={{
                   background: "rgba(0,0,0,0.3)",
                   padding: "10px 20px",
@@ -703,7 +883,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   {defenseFeedback}
                 </div>
 
-                {/* Turret Button Controls */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", width: "100%", maxWidth: "440px" }}>
                   <button
                     disabled={projectiles.length > 0 || enemyHit}
@@ -728,7 +907,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             {/* ===================== GAME 3: RHYTHM BEAT ===================== */}
             {miniGame.type === "rhythm-beat" && (
               <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "20px", alignItems: "center" }}>
-                {/* Condition Board */}
                 <div style={{
                   background: "rgba(189, 0, 255, 0.1)",
                   border: "2px solid #bd00ff",
@@ -743,7 +921,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   </strong>
                 </div>
 
-                {/* Judgment Beat Track */}
                 <div style={{
                   width: "100%",
                   height: "130px",
@@ -753,7 +930,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   position: "relative",
                   overflow: "hidden"
                 }}>
-                  {/* Neon Cyber Track Tubes */}
                   <div style={{
                     position: "absolute",
                     top: "50%",
@@ -765,7 +941,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     transform: "translateY(-50%)"
                   }} />
 
-                  {/* Target Zone Ring (Neoner layout) */}
                   <div style={{
                     position: "absolute",
                     left: "16.6%",
@@ -788,17 +963,14 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     HIT!
                   </div>
 
-                  {/* Pulsing ring on correct hit */}
                   {hitPulse && <div className="judgment-hit-pulse" />}
 
-                  {/* Floating combo word info */}
                   {combo > 0 && comboActive && (
                     <div className="combo-text">
                       {combo} COMBO!
                     </div>
                   )}
 
-                  {/* Incoming Rhythm Note */}
                   <div style={{
                     position: "absolute",
                     left: `${noteX}%`,
@@ -823,7 +995,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   </div>
                 </div>
 
-                {/* Hit feedback words */}
                 <div style={{
                   fontSize: "1.25rem",
                   fontWeight: "bold",
@@ -833,7 +1004,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   {hitFeedback}
                 </div>
 
-                {/* Beat buttons */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", width: "100%", maxWidth: "400px" }}>
                   <button
                     onClick={() => handleRhythmClick("O")}
@@ -869,7 +1039,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   position: "relative",
                   overflow: "hidden"
                 }}>
-                  {/* Dish */}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", zIndex: 3 }}>
                     <div style={{
                       fontSize: "4.5rem",
@@ -881,11 +1050,9 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     <span style={{ fontSize: "0.85rem", color: "#a5b4fc", marginTop: "4px" }}>송신 안테나</span>
                   </div>
 
-                  {/* Pulsing lightning laser beam & electric sparks */}
                   {laserBeamActive && (
                     <>
                       <div className="api-laser-line" />
-                      {/* 번개형 요동 스파크 파티클 무작위 렌더링 */}
                       {Array.from({ length: 18 }).map((_, i) => {
                         const randX = 15 + Math.random() * 65;
                         const randY = 35 + Math.random() * 30;
@@ -915,7 +1082,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     </>
                   )}
 
-                  {/* Destination screen with Hologram glow */}
                   <div className="hologram-screen" style={{
                     width: "120px",
                     height: "120px",
@@ -936,7 +1102,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   </div>
                 </div>
 
-                {/* API options */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%", maxWidth: "500px" }}>
                   {miniGame.options.map((opt, idx) => (
                     <button
@@ -960,7 +1125,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             )}
           </div>
         ) : (
-          /* Winning Badge Reward Display */
+          /* 미니게임 성공 축하 화면 */
           <div style={{
             textAlign: "center",
             display: "flex",
@@ -995,6 +1160,52 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                 <strong>{lesson.planet} 배지</strong>를 획득하셨습니다!
               </p>
             </div>
+
+            {/* ===================== [새로 추가됨] 최종 기록 및 역대 최고 기록 표시판 ===================== */}
+            {miniGame.type === "balloon-pop" && (
+              <div className="glass-panel" style={{
+                padding: "18px 36px",
+                borderColor: isNewRecord ? "var(--color-neon-cyan)" : "rgba(255, 255, 255, 0.1)",
+                background: "rgba(5, 6, 20, 0.75)",
+                borderRadius: "20px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                alignItems: "center",
+                boxShadow: isNewRecord ? "0 0 25px rgba(0, 240, 255, 0.3)" : "none",
+                transform: isNewRecord ? "scale(1.05)" : "none",
+                transition: "all 0.3s ease"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "1.1rem", color: "#cbd5e1" }}>⏱️ 지안이의 탈출 시간:</span>
+                  <strong style={{ fontSize: "1.9rem", color: "var(--color-neon-cyan)", fontFamily: "monospace" }}>
+                    {elapsedTime.toFixed(2)}초
+                  </strong>
+                </div>
+                
+                {isNewRecord ? (
+                  <div style={{
+                    background: "linear-gradient(90deg, #ff007f, #00f0ff)",
+                    color: "white",
+                    padding: "4px 16px",
+                    borderRadius: "12px",
+                    fontSize: "0.95rem",
+                    fontWeight: "bold",
+                    marginTop: "6px",
+                    boxShadow: "0 0 10px rgba(0, 240, 255, 0.5)",
+                    animation: "pulse-cyan 1.5s infinite"
+                  }}>
+                    🎉 최고 기록 경신! 대단해요 지안이! 🎉
+                  </div>
+                ) : (
+                  bestRecord && (
+                    <div style={{ fontSize: "0.9rem", color: "#94a3b8" }}>
+                      🏆 개인 최고 기록: {bestRecord.toFixed(2)}초
+                    </div>
+                  )
+                )}
+              </div>
+            )}
 
             <div style={{
               background: "rgba(0, 240, 255, 0.05)",
