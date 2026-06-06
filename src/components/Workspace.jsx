@@ -120,17 +120,30 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
           audioSynth.playWin(); // Play victory fanfare arpeggio
         }
         setIsSuccess(true);
+        setError(null); // 에러 초기화
       } else {
-        setError("코드가 정상적으로 실행되었지만, 이 행성의 통과 조건을 만족하지 못했어요. 아래 [임무지침]에 나와있는 글자와 똑같이 나오도록 수정해볼까요?");
+        if (isSuccess) {
+          // 이미 성공 상태라면 다른 코드로 자유롭게 연습하더라도 화면에 빨간 에러 메시지를 띄우지 않습니다.
+          setError(null);
+        } else {
+          setError("코드가 정상적으로 실행되었지만, 이 행성의 통과 조건을 만족하지 못했어요. 아래 [임무지침]에 나와있는 글자와 똑같이 나오도록 수정해볼까요?");
+          audioSynth.playError();
+          setIsSuccess(false);
+          setQuizSolved(false);
+        }
+      }
+    } else {
+      if (isSuccess) {
+        // 이미 한 번 성공했다면, 지안이가 자유롭게 바꾼 코드에 오타(문법 에러)가 나도 에러 팝업창을 띄우지 않습니다.
+        // 대신 지안이가 공부할 수 있도록 콘솔 검은 창에 친절하게 에러를 출력해 줍니다.
+        setStdout((prev) => prev + "⚠️ 파이디의 마법 에러 알림:\n" + result.error + "\n");
+        setError(null);
+      } else {
+        setError(result.error);
         audioSynth.playError();
         setIsSuccess(false);
         setQuizSolved(false);
       }
-    } else {
-      setError(result.error);
-      audioSynth.playError();
-      setIsSuccess(false);
-      setQuizSolved(false);
     }
   };
 
@@ -385,9 +398,8 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
                 <span style={{ fontSize: "2.5rem" }}>🎉⭐</span>
                 <div>
                   <strong style={{ fontSize: "1.4rem", color: "#00f0ff" }}>퀴즈와 미션을 모두 해결했어요! (별 연료 +1 확보)</strong>
-                  <p style={{ color: "#e2e8f0", fontSize: "1.05rem", marginTop: "4px", lineHeight: "1.5" }}>
-                    아래 파이썬 코드를 다른 글자나 숫자로 더 고쳐보며 놀거나,<br />
-                    준비가 되면 우측의 **미니게임 버튼**을 눌러 복습 비행을 시작하세요!
+                  <p style={{ color: "#e2e8f0", fontSize: "1.1rem", marginTop: "4px", lineHeight: "1.6" }}>
+                    🤖 <strong>파이디:</strong> "지안 탐험가님 정말 최고예요! 이제 파이썬 코드 창에서 글자나 숫자를 마음대로 바꾸고 다시 실행해보며 **자유롭게 마법 연습**을 즐겨보세요! 준비가 다 되면 우측의 **미니게임 버튼**을 꾹 눌러 다음 행성으로 출발해봐요! 🚀"
                   </p>
                 </div>
               </div>

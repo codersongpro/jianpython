@@ -14,6 +14,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   // FX States
   const [particles, setParticles] = useState([]);
   const [confetti, setConfetti] = useState([]);
+  const [isScreenShaking, setIsScreenShaking] = useState(false);
 
   // 1. BALLOON POP STATES
   const [balloonList, setBalloonList] = useState([]);
@@ -28,6 +29,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   const [projectiles, setProjectiles] = useState([]);
   const [blasts, setBlasts] = useState([]);
   const [baseRecoil, setBaseRecoil] = useState(false);
+  const [muzzleFlash, setMuzzleFlash] = useState(false);
   const [enemyHit, setEnemyHit] = useState(false);
 
   // 3. RHYTHM STATES
@@ -48,6 +50,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setScore(0);
     setParticles([]);
     setConfetti([]);
+    setIsScreenShaking(false);
     setTargetCharIdx(0);
     setErrorBalloonId(null);
     setEnemyX(100);
@@ -55,6 +58,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setProjectiles([]);
     setBlasts([]);
     setBaseRecoil(false);
+    setMuzzleFlash(false);
     setEnemyHit(false);
     setNoteX(100);
     setCurrentBeatIdx(0);
@@ -102,7 +106,9 @@ export default function MiniGameContainer({ lessonId, onClose }) {
       y: 20 + Math.random() * 30, // random height
       popped: false,
       speed: 0.4 + Math.random() * 0.4,
-      direction: Math.random() > 0.5 ? 1 : -1
+      direction: Math.random() > 0.5 ? 1 : -1,
+      windPhase: Math.random() * 100, // 바람에 흔들릴 페이즈 무작위 생성
+      windSpeed: 0.02 + Math.random() * 0.03 // 바람 속도
     }));
     setBalloonList(items);
     setTargetCharIdx(0);
@@ -127,7 +133,10 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             nextDir = 1;
           }
 
-          return { ...b, y: nextY, direction: nextDir };
+          // 프레임마다 바람 흔들림 각도(windPhase) 누적 업데이트
+          const nextPhase = (b.windPhase || 0) + (b.windSpeed || 0.03);
+
+          return { ...b, y: nextY, direction: nextDir, windPhase: nextPhase };
         })
       );
     }, 50);
@@ -174,12 +183,12 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     return () => clearInterval(interval);
   }, [miniGame, gameWon, currentBeatIdx]);
 
-  // Trigger popping particles
+  // Trigger popping particles (24 particles max for ultimate pop juice!)
   const triggerPopParticles = (x, y, color) => {
-    const count = 12;
+    const count = 24; // 12개에서 24개로 증강
     const newParticles = Array.from({ length: count }).map((_, i) => {
       const angle = (i / count) * Math.PI * 2 + Math.random() * 0.4;
-      const distance = 45 + Math.random() * 70;
+      const distance = 55 + Math.random() * 85; // 퍼지는 반경 확대
       const tx = Math.cos(angle) * distance;
       const ty = Math.sin(angle) * distance;
       return {
@@ -189,7 +198,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         color,
         tx: `${tx}px`,
         ty: `${ty}px`,
-        size: 5 + Math.random() * 7
+        size: 4 + Math.random() * 8 // 입자 크기 다양화
       };
     });
     setParticles((prev) => [...prev, ...newParticles]);
@@ -234,7 +243,12 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     if (isCorrect) {
       // 맞췄을 때: 계음 상승 효과음
       audioSynth.playBeep(523 + targetCharIdx * 80, 0.05);
-      triggerPopParticles(balloon.x, balloon.y, balloon.color);
+      
+      // X축 흔들림 오프셋을 구해서 실제 파티클 터지는 중심점을 계산
+      const currentOffset = Math.sin(balloon.windPhase || 0) * 16;
+      const actualX = balloon.x + (currentOffset / 8.5); // CSS 너비 기준 비례 보정
+
+      triggerPopParticles(actualX, balloon.y, balloon.color);
       
       setBalloonList((prev) => prev.map((b) => (b.id === balloon.id ? { ...b, popped: true } : b)));
 
@@ -276,7 +290,10 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
     setTurretType(type);
     setBaseRecoil(true);
+    setMuzzleFlash(true); // 대포 섬광 켜기
+    
     setTimeout(() => setBaseRecoil(false), 400);
+    setTimeout(() => setMuzzleFlash(false), 150); // 0.15초 뒤 섬광 자동 해제
 
     const enemy = miniGame.enemies[currentEnemyIdx];
     const isCorrect = enemy.type === type;
@@ -299,11 +316,14 @@ export default function MiniGameContainer({ lessonId, onClose }) {
       
       if (isCorrect) {
         audioSynth.playCoin();
-        setEnemyHit(true); // freeze enemy movement
+        setEnemyHit(true); // 피격 상태 돌입
         
+        // 넉백 (Knockback) 물리 효과 적용 - 우측으로 튕김
+        setEnemyX((prev) => Math.min(100, prev + 18));
+
         // Spawn Blast explosion
         setBlasts([{ id: Math.random(), x: `${enemyX}%` }]);
-        setDefenseFeedback("피융-💥 바이러스를 멋지게 파괴했습니다! 다음 적을 요격하세요!");
+        setDefenseFeedback("피융-💥 대포 발사 성공! 바이러스 넉백 후 폭발시켰습니다!");
 
         setTimeout(() => {
           setBlasts([]);
@@ -347,9 +367,11 @@ export default function MiniGameContainer({ lessonId, onClose }) {
       audioSynth.playCoin();
       setHitFeedback("PERFECT! 🌟");
       
-      // Trigger Hit Pulse & Combo
+      // Trigger Hit Pulse & Screen Shake
       setHitPulse(true);
+      setIsScreenShaking(true);
       setTimeout(() => setHitPulse(false), 400);
+      setTimeout(() => setIsScreenShaking(false), 300); // 0.3초간 흔들림 유지
 
       const nextCombo = combo + 1;
       setCombo(nextCombo);
@@ -431,7 +453,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
       </header>
 
       {/* Game Area */}
-      <section className="glass-panel" style={{
+      <section className={`glass-panel ${isScreenShaking ? "shake-animation" : ""}`} style={{
         padding: "32px",
         background: "rgba(10, 11, 27, 0.85)",
         display: "flex",
@@ -514,6 +536,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   {balloonList.map((b) => {
                     if (b.popped) return null;
                     const isError = b.id === errorBalloonId;
+                    // X오프셋 삼각함수 바람 효과 반영
+                    const currentOffset = Math.sin(b.windPhase || 0) * 16;
                     return (
                       <button
                         key={b.id}
@@ -521,7 +545,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                         className={isError ? "balloon-error" : "balloon-wobble"}
                         style={{
                           position: "absolute",
-                          left: `${b.x}%`,
+                          left: `calc(${b.x}% + ${currentOffset}px)`,
                           top: `${b.y}%`,
                           background: "none",
                           border: "none",
@@ -529,7 +553,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                           outline: "none",
                           transform: "translate(-50%, -50%)",
                           zIndex: 10,
-                          transition: isError ? "none" : "top 0.05s linear"
+                          transition: isError ? "none" : "top 0.05s linear, left 0.05s linear"
                         }}
                       >
                         {/* Cutest SVG Balloon */}
@@ -593,6 +617,23 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     <span style={{ fontSize: "0.8rem", color: "#00f0ff", background: "rgba(0,240,255,0.1)", padding: "2px 8px", borderRadius: "10px" }}>방어 기지</span>
                   </div>
 
+                  {/* Turret Muzzle Flash Effect */}
+                  {muzzleFlash && (
+                    <div style={{
+                      position: "absolute",
+                      left: "85px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      width: "55px",
+                      height: "55px",
+                      borderRadius: "50%",
+                      background: "radial-gradient(circle, #ffffff 30%, var(--color-neon-cyan) 70%, transparent)",
+                      boxShadow: "0 0 25px var(--color-neon-cyan), 0 0 45px #00f0ff",
+                      zIndex: 10,
+                      pointerEvents: "none"
+                    }} />
+                  )}
+
                   {/* Live Turret Projectiles */}
                   {projectiles.map((p) => (
                     <div
@@ -625,9 +666,11 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
-                    transition: enemyHit ? "none" : "left 0.04s linear",
-                    filter: enemyHit ? "brightness(2) contrast(1.5)" : "none",
-                    opacity: enemyHit ? 0.8 : 1,
+                    transition: enemyHit 
+                      ? "left 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.15s ease" 
+                      : "left 0.04s linear",
+                    filter: enemyHit ? "brightness(2.5) contrast(1.5) drop-shadow(0 0 15px #ff007f)" : "none",
+                    opacity: enemyHit ? 0.85 : 1,
                     zIndex: 3
                   }}>
                     <div style={{ fontSize: "3.2rem" }} className={enemyHit ? "none" : "shake-animation"}>
@@ -823,7 +866,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   background: "rgba(5, 6, 20, 0.4)",
                   border: "1.5px solid rgba(255, 255, 255, 0.05)",
                   borderRadius: "24px",
-                  position: "relative"
+                  position: "relative",
+                  overflow: "hidden"
                 }}>
                   {/* Dish */}
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", zIndex: 3 }}>
@@ -837,8 +881,39 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                     <span style={{ fontSize: "0.85rem", color: "#a5b4fc", marginTop: "4px" }}>송신 안테나</span>
                   </div>
 
-                  {/* Pulsing lightning laser beam */}
-                  {laserBeamActive && <div className="api-laser-line" />}
+                  {/* Pulsing lightning laser beam & electric sparks */}
+                  {laserBeamActive && (
+                    <>
+                      <div className="api-laser-line" />
+                      {/* 번개형 요동 스파크 파티클 무작위 렌더링 */}
+                      {Array.from({ length: 18 }).map((_, i) => {
+                        const randX = 15 + Math.random() * 65;
+                        const randY = 35 + Math.random() * 30;
+                        const dx = `${Math.random() * 50 - 25}px`;
+                        const dy = `${Math.random() * 50 - 25}px`;
+                        return (
+                          <div
+                            key={i}
+                            className="neon-spark-particle"
+                            style={{
+                              position: "absolute",
+                              left: `${randX}%`,
+                              top: `${randY}%`,
+                              width: `${3 + Math.random() * 4}px`,
+                              height: `${3 + Math.random() * 4}px`,
+                              background: Math.random() > 0.5 ? "var(--color-neon-cyan)" : "var(--color-neon-pink)",
+                              borderRadius: "50%",
+                              boxShadow: "0 0 8px currentColor",
+                              animation: "spark-jump 0.5s ease-out infinite",
+                              animationDelay: `${Math.random() * 0.4}s`,
+                              "--dx": dx,
+                              "--dy": dy
+                            }}
+                          />
+                        );
+                      })}
+                    </>
+                  )}
 
                   {/* Destination screen with Hologram glow */}
                   <div className="hologram-screen" style={{
