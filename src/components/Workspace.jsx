@@ -36,6 +36,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   // UI & UX States
   const [showHint, setShowHint] = useState(false);
   const [showStoryModal, setShowStoryModal] = useState(true); // 첫 진입시 스토리 팝업 기본 노출
+  const [hasBeenFocused, setHasBeenFocused] = useState(false); // 처음 터치할 때 커서 이동을 제어하는 상태
 
   const editorRef = useRef(null);
 
@@ -68,8 +69,39 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
       setQuizError(false);
       setShowHint(false);
       setShowStoryModal(true); // 레슨 이동 시 마다 스토리를 다시 먼저 보여줌
+      setHasBeenFocused(false); // 레슨이 바뀔 때 마다 처음 터치 상태를 리셋해요
     }
   }, [lessonId]);
+
+  // 지안이가 처음 코드창을 탭(터치)했을 때 주석 뒤쪽으로 커서를 자동으로 보내주는 마법 기능이에요!
+  const handleEditorFocus = (e) => {
+    if (!hasBeenFocused) {
+      setHasBeenFocused(true);
+      const currentCode = e.target.value;
+      const lines = currentCode.split("\n");
+      let cursorIndex = 0;
+      let i = 0;
+      
+      // '#'으로 시작하는 주석 설명 글들이나 빈 줄들의 길이를 더해서 다음 줄의 시작 위치를 찾아요
+      while (i < lines.length && (lines[i].trim().startsWith("#") || lines[i].trim() === "")) {
+        cursorIndex += lines[i].length + 1; // +1은 줄바꿈 문자('\n') 크기예요
+        i++;
+      }
+      
+      const targetPos = Math.min(currentCode.length, cursorIndex);
+      const textarea = e.target;
+      
+      // 브라우저의 원래 포커스 커서 지정을 덮어쓸 수 있도록 아주 잠깐(10ms) 기다렸다가 안전하게 커서를 보내줘요
+      setTimeout(() => {
+        textarea.setSelectionRange(targetPos, targetPos);
+      }, 10);
+    }
+  };
+
+  // 코드창 바깥을 터치했다가 다시 터치할 때도 동작할 수 있도록 포커스가 풀리면 초기화해줘요
+  const handleEditorBlur = () => {
+    setHasBeenFocused(false);
+  };
 
   // Insert code helper
   const handleInsertCode = (textToInsert, cursorOffset = 0) => {
@@ -528,6 +560,8 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
               ref={editorRef}
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              onFocus={handleEditorFocus}
+              onBlur={handleEditorBlur}
               style={{
                 width: "100%",
                 height: "220px",
