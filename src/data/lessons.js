@@ -167,9 +167,9 @@ export const lessons = [
   },
   {
     id: 6,
-    planet: "Planet Input (우주 번역 행성)",
-    title: "무엇을 좋아하나요? 입력 상자",
-    story: "지안이가 키보드로 직접 쳐서 입력한 대답도 상자에 이쁘게 담아둘 수 있어요. 💬\n\n이번 실습에서는 `answer` 상자에 지안이가 가장 좋아하는 우주 음식인 `\"피자\"`를 담아볼게요.\n\n그리고 스피커로 \"내가 좋아하는 음식은 피자\"라고 말하도록 이어붙여서 출력해볼까요?",
+    planet: "Planet Message (우주 번역 행성)",
+    title: "무엇을 좋아하나요? 글자 변수",
+    story: "좋아하는 대답도 상자에 이쁘게 담아두면 나중에 다시 꺼내 쓸 수 있어요. 💬\n\n이번 실습에서는 `answer` 상자에 지안이가 가장 좋아하는 우주 음식인 `\"피자\"`를 담아볼게요.\n\n그리고 스피커로 \"내가 좋아하는 음식은 피자\"라고 말하도록 이어붙여서 출력해볼까요?",
     instructions: [
       "answer = \"피자\" 라고 적어 좋아하는 음식을 answer 상자에 잘 보관하세요.",
       "그 다음 줄에 print(\"내가 좋아하는 음식은 \" + answer) 를 적어 파이디에게 들려주세요!"
@@ -256,13 +256,14 @@ export const lessons = [
       feedback: "훌륭해요! Tab 키(또는 스페이스바 4번)로 밀어 적어야 'if 조건 방 안의 내용'으로 인정해줘요! 🚧"
     },
     miniGame: {
-      type: "rhythm-beat",
-      title: "만약에(if) 회피 비트",
-      description: "조건식이 참(O)인지 거짓(X)인지 흐르는 판정에 따라 리듬 버튼을 클릭해 관문을 회피하세요!",
-      beats: [
-        { expr: "distance < 5 (distance = 3 일때)", expect: "O" },
-        { expr: "distance > 10 (distance = 3 일때)", expect: "X" },
-        { expr: "distance == 3 (distance = 3 일때)", expect: "O" }
+      type: "dodge-code",
+      title: "if 관문 운석 피하기",
+      description: "다가오는 조건식을 보고 참이면 [참 길], 거짓이면 [거짓 길]로 우주선을 재빨리 이동하세요!",
+      lanes: ["참 길", "거짓 길"],
+      obstacles: [
+        { label: "distance < 5 (distance = 3)", dangerLane: 1, safeLane: 0, hazard: "if 운석", success: "참 길 통과! if 문이 열렸어요." },
+        { label: "distance > 10 (distance = 3)", dangerLane: 0, safeLane: 1, hazard: "조건 운석", success: "거짓 길 통과! 조건을 잘 읽었어요." },
+        { label: "distance == 3 (distance = 3)", dangerLane: 1, safeLane: 0, hazard: "비교 운석", success: "정확해요! 같은 값인지 잘 확인했어요." }
       ]
     }
   },
@@ -292,13 +293,14 @@ export const lessons = [
       feedback: "정답! if 조건이 아닐 때 작동할 방을 else: 기호 아래 들여쓰기로 작성한답니다. 🛂"
     },
     miniGame: {
-      type: "rhythm-beat",
-      title: "더블 패스포트 리듬 비트",
-      description: "energy = 80 일 때 각 조건식이 맞는지 판단하세요!",
-      beats: [
-        { expr: "energy >= 50", expect: "O" },
-        { expr: "energy < 50", expect: "X" },
-        { expr: "energy == 80", expect: "O" }
+      type: "dodge-code",
+      title: "if-else 두 갈래 활주로",
+      description: "조건이 참이면 if 활주로, 거짓이면 else 활주로로 순발력 있게 피하세요!",
+      lanes: ["if 활주로", "else 활주로"],
+      obstacles: [
+        { label: "energy >= 50 (energy = 80)", dangerLane: 1, safeLane: 0, hazard: "출발 관문", success: "if 활주로 진입! 에너지가 충분해요." },
+        { label: "energy < 50 (energy = 80)", dangerLane: 0, safeLane: 1, hazard: "충전 관문", success: "else 활주로 진입! 거짓 조건을 잘 피했어요." },
+        { label: "else 실행? (energy = 80)", dangerLane: 0, safeLane: 1, hazard: "갈림길 운석", success: "맞아요. if가 참이면 else는 실행되지 않아요." }
       ]
     }
   },
@@ -510,13 +512,14 @@ export const lessons = [
       feedback: "정답! `==`는 같은지 묻는 기호이고, `!=`는 같지 않은지(다르지 않은지) 묻는 기호입니다. 느낌표(!)는 '아니다'라는 뜻이에요! 🌈"
     },
     miniGame: {
-      type: "rhythm-beat",
-      title: "천칭 비교 판단 비트",
-      description: "아래 비교 수식 질문들이 진실(O)인지 거짓(X)인지 판정에 맞춰 클릭하세요!",
-      beats: [
-        { expr: "5 != 5", expect: "X" },
-        { expr: "10 != 3", expect: "O" },
-        { expr: "7 >= 7", expect: "O" }
+      type: "dodge-code",
+      title: "다른 얼굴 외계인 피하기",
+      description: "서로 다르면 [다름 길], 같으면 [같음 길]로 재빨리 이동해 외계인 추격을 피하세요!",
+      lanes: ["다름 길", "같음 길"],
+      obstacles: [
+        { label: "5 != 5", dangerLane: 0, safeLane: 1, hazard: "쌍둥이 외계인", success: "같음 길 성공! 두 값은 같아요." },
+        { label: "10 != 3", dangerLane: 1, safeLane: 0, hazard: "비교 외계인", success: "다름 길 성공! 두 값은 달라요." },
+        { label: "'A' != 'B'", dangerLane: 1, safeLane: 0, hazard: "문자 외계인", success: "다름 길 성공! 글자도 비교할 수 있어요." }
       ]
     }
   },
@@ -544,6 +547,10 @@ export const lessons = [
       type: "code-defense",
       title: "and 관문 방어선",
       description: "두 조건식 A and B 중 둘 다 참(True)인 바이러스 데이터만 골라 [참 대포]로 요격하세요!",
+      defenseOptions: [
+        { type: "string", label: "✅ True 대포 발사", className: "btn-cyan" },
+        { type: "number", label: "❌ False 대포 발사", className: "btn-pink" }
+      ],
       enemies: [
         { label: "True and True", type: "string" },
         { label: "True and False", type: "number" },
@@ -576,6 +583,10 @@ export const lessons = [
       type: "code-defense",
       title: "or 자유 관문 방어",
       description: "or 조건식 중 최종 결과가 참(True)이 되는 데이터 바이러스를 모두 찾아 대포를 발사하세요!",
+      defenseOptions: [
+        { type: "string", label: "✅ True 대포 발사", className: "btn-cyan" },
+        { type: "number", label: "❌ False 대포 발사", className: "btn-pink" }
+      ],
       enemies: [
         { label: "False or True", type: "string" },
         { label: "5 > 10 or 2 > 1", type: "string" },
@@ -822,7 +833,7 @@ export const lessons = [
     miniGame: {
       type: "balloon-pop",
       title: "함수 정의 마법 풍선",
-      description: "함수를 선언할 때 사용하는 특수 기워드 'def' 스펠링 풍선을 찾아 터트려 주세요!",
+      description: "함수를 선언할 때 사용하는 특수 키워드 'def' 스펠링 풍선을 찾아 터트려 주세요!",
       word: "def",
       balloons: ["d", "e", "f"]
     }
@@ -851,10 +862,15 @@ export const lessons = [
       type: "code-defense",
       title: "매개변수 재료 공급 디펜스",
       description: "함수 호출문 중 재료(매개변수)의 개수가 올바르게 짝지어진 것만 골라 대포로 통과시키세요!",
+      defenseOptions: [
+        { type: "string", label: "✅ 재료 개수 맞음", className: "btn-cyan" },
+        { type: "number", label: "⚠️ 재료 개수 안 맞음", className: "btn-pink" }
+      ],
       enemies: [
         { label: "greeting('지안')", type: "string" },
+        { label: "greeting()", type: "number" },
         { label: "add(5, 10)", type: "string" },
-        { label: "hello()", type: "number" }
+        { label: "add(5)", type: "number" }
       ]
     }
   },
@@ -910,6 +926,10 @@ export const lessons = [
       type: "code-defense",
       title: "리스트 순회 연산 대포",
       description: "리스트 [1, 2, 3] 의 값을 2배씩 튀겨 출력하는 `for x in [1, 2, 3]:` 루프에서 x의 값이 맞게 출력된 바이러스만 파괴하세요!",
+      defenseOptions: [
+        { type: "string", label: "✅ 출력되는 값", className: "btn-cyan" },
+        { type: "number", label: "❌ 출력되지 않는 값", className: "btn-pink" }
+      ],
       enemies: [
         { label: "2", type: "string" },
         { label: "4", type: "string" },

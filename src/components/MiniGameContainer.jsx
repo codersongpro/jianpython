@@ -6,6 +6,12 @@ import { audioSynth } from "../utils/audioSynth";
 export default function MiniGameContainer({ lessonId, onClose }) {
   const lesson = lessons.find((l) => l.id === lessonId);
   const miniGame = lesson ? lesson.miniGame : null;
+  const spellingLessonIds = [1, 2, 23, 25, 26, 28];
+  const isSpellingGame = miniGame?.type === "balloon-pop" && spellingLessonIds.includes(lessonId);
+  const defenseOptions = miniGame?.defenseOptions || [
+    { type: "string", label: '💬 글자 대포 [ " " ] 발사', className: "btn-cyan" },
+    { type: "number", label: "🧮 숫자 대포 [ 123 ] 발사", className: "btn-pink" }
+  ];
 
   // 게임 진행 상태
   const [gameWon, setGameWon] = useState(false);
@@ -52,6 +58,13 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   const [laserBeamActive, setLaserBeamActive] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
 
+  // 5. 피하기 게임 관련 상태들
+  const [dodgeLane, setDodgeLane] = useState(0);
+  const [currentDodgeIdx, setCurrentDodgeIdx] = useState(0);
+  const [obstacleY, setObstacleY] = useState(0);
+  const [dodgeFeedback, setDodgeFeedback] = useState("");
+  const [dodgeHit, setDodgeHit] = useState(false);
+
   // 레슨이 변경될 때 모든 상태 초기화
   useEffect(() => {
     setGameWon(false);
@@ -76,6 +89,11 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setHitPulse(false);
     setLaserBeamActive(false);
     setApiConnected(false);
+    setDodgeLane(0);
+    setCurrentDodgeIdx(0);
+    setObstacleY(0);
+    setDodgeFeedback("");
+    setDodgeHit(false);
     setDefenseFeedback("바이러스를 요격할 대포를 준비하세요!");
 
     // [새로 추가됨] 타이머 및 기록 상태 리셋
@@ -132,7 +150,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 풍선 터트리기 초기화 (정답 풍선 + 가짜 방해 풍선 혼합)
   const initializeBalloons = () => {
-    const isSpellingGame = [1, 2, 23, 25, 26, 28].includes(lessonId);
     const rawBalloons = miniGame.balloons || [];
     
     // 1. 진짜 정답 풍선들 생성
@@ -290,6 +307,50 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     return () => clearInterval(interval);
   }, [miniGame, gameWon, currentBeatIdx]);
 
+  // 피하기 게임 장애물 낙하 루프
+  useEffect(() => {
+    if (!miniGame || miniGame.type !== "dodge-code" || gameWon || dodgeHit) return;
+
+    const interval = setInterval(() => {
+      setObstacleY((y) => {
+        if (y >= 78) {
+          const obstacle = miniGame.obstacles[currentDodgeIdx];
+          const isSafe = dodgeLane === obstacle.safeLane;
+
+          if (isSafe) {
+            audioSynth.playCoin();
+            const nextScore = score + 1;
+            setScore(nextScore);
+            setDodgeFeedback(obstacle.success || "멋지게 피했어요!");
+
+            if (nextScore >= miniGame.obstacles.length) {
+              setTimeout(() => {
+                audioSynth.playWin();
+                setGameWon(true);
+              }, 300);
+            } else {
+              setCurrentDodgeIdx(currentDodgeIdx + 1);
+              setTimeout(() => setDodgeFeedback(""), 700);
+            }
+          } else {
+            audioSynth.playError();
+            setDodgeHit(true);
+            setDodgeFeedback(obstacle.fail || "앗! 조건을 다시 보고 안전한 길로 움직여요.");
+            setTimeout(() => {
+              setDodgeHit(false);
+              setDodgeFeedback("");
+            }, 900);
+          }
+
+          return 0;
+        }
+        return y + 3.2;
+      });
+    }, 55);
+
+    return () => clearInterval(interval);
+  }, [miniGame, gameWon, dodgeHit, currentDodgeIdx, dodgeLane, score]);
+
   // 파티클(풍선 터진 파편) 튀기는 물리 이펙트 생성
   const triggerPopParticles = (x, y, color) => {
     const count = 24; // 풍성한 시각 효과를 위해 파티클 수 24개 유지
@@ -365,9 +426,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }
 
     let isCorrect = false;
-
-    // 1. 단어 철자(Spelling) 순서 매칭 게임 (1, 2, 23, 25, 26, 28단계)
-    const isSpellingGame = [1, 2, 23, 25, 26, 28].includes(lessonId);
 
     if (isSpellingGame) {
       const expectedChar = miniGame.word[targetCharIdx];
@@ -883,23 +941,127 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   {defenseFeedback}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", width: "100%", maxWidth: "440px" }}>
-                  <button
-                    disabled={projectiles.length > 0 || enemyHit}
-                    onClick={() => handleDefenseShoot("string")}
-                    className="btn-cosmic btn-cyan"
-                    style={{ padding: "16px", fontSize: "1.25rem", borderRadius: "18px" }}
-                  >
-                    💬 글자 대포 [ " " ] 발사
-                  </button>
-                  <button
-                    disabled={projectiles.length > 0 || enemyHit}
-                    onClick={() => handleDefenseShoot("number")}
-                    className="btn-cosmic btn-pink"
-                    style={{ padding: "16px", fontSize: "1.25rem", borderRadius: "18px" }}
-                  >
-                    🧮 숫자 대포 [ 123 ] 발사
-                  </button>
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${defenseOptions.length}, 1fr)`, gap: "20px", width: "100%", maxWidth: "520px" }}>
+                  {defenseOptions.map((option) => (
+                    <button
+                      key={option.type}
+                      disabled={projectiles.length > 0 || enemyHit}
+                      onClick={() => handleDefenseShoot(option.type)}
+                      className={`btn-cosmic ${option.className || "btn-cyan"}`}
+                      style={{ padding: "16px", fontSize: "1.15rem", borderRadius: "18px" }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ===================== GAME 2-1: DODGE CODE ===================== */}
+            {miniGame.type === "dodge-code" && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "20px", alignItems: "center" }}>
+                <div style={{
+                  background: "rgba(0, 240, 255, 0.08)",
+                  border: "1.5px solid rgba(0, 240, 255, 0.35)",
+                  borderRadius: "18px",
+                  padding: "12px 24px",
+                  textAlign: "center"
+                }}>
+                  <div style={{ fontSize: "0.85rem", color: "#a5b4fc", fontWeight: "bold" }}>다가오는 코드</div>
+                  <strong style={{ fontSize: "1.55rem", color: "white", fontFamily: "monospace" }}>
+                    {miniGame.obstacles[currentDodgeIdx].label}
+                  </strong>
+                </div>
+
+                <div style={{
+                  width: "100%",
+                  height: "300px",
+                  background: "#050614",
+                  border: "2px solid rgba(0, 240, 255, 0.2)",
+                  borderRadius: "24px",
+                  position: "relative",
+                  overflow: "hidden",
+                  display: "grid",
+                  gridTemplateColumns: `repeat(${miniGame.lanes.length}, 1fr)`
+                }}>
+                  {miniGame.lanes.map((lane, idx) => (
+                    <div
+                      key={lane}
+                      style={{
+                        borderLeft: idx === 0 ? "none" : "1px dashed rgba(255,255,255,0.12)",
+                        background: idx === dodgeLane ? "rgba(0, 240, 255, 0.08)" : "transparent",
+                        position: "relative"
+                      }}
+                    >
+                      <div style={{
+                        position: "absolute",
+                        bottom: "10px",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        color: idx === dodgeLane ? "#00f0ff" : "#94a3b8",
+                        fontWeight: "900"
+                      }}>
+                        {lane}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div style={{
+                    position: "absolute",
+                    left: `${((miniGame.obstacles[currentDodgeIdx].dangerLane + 0.5) / miniGame.lanes.length) * 100}%`,
+                    top: `${obstacleY}%`,
+                    transform: "translate(-50%, -50%)",
+                    background: dodgeHit ? "#ef4444" : "linear-gradient(135deg, #ff007f, #bd00ff)",
+                    border: "2px solid white",
+                    borderRadius: "16px",
+                    padding: "10px 14px",
+                    color: "white",
+                    fontFamily: "monospace",
+                    fontWeight: "900",
+                    boxShadow: "0 0 20px rgba(255, 0, 127, 0.45)",
+                    maxWidth: "190px",
+                    textAlign: "center",
+                    transition: "top 0.055s linear"
+                  }}>
+                    {miniGame.obstacles[currentDodgeIdx].hazard || "코드 운석"}
+                  </div>
+
+                  <div style={{
+                    position: "absolute",
+                    left: `${((dodgeLane + 0.5) / miniGame.lanes.length) * 100}%`,
+                    bottom: "44px",
+                    transform: "translateX(-50%)",
+                    fontSize: "3.2rem",
+                    transition: "left 0.16s ease",
+                    filter: dodgeHit ? "drop-shadow(0 0 14px #ef4444)" : "drop-shadow(0 0 12px #00f0ff)"
+                  }}>
+                    🛸
+                  </div>
+                </div>
+
+                <div style={{
+                  minHeight: "28px",
+                  color: dodgeFeedback.includes("앗") ? "#ef4444" : "#10b981",
+                  fontSize: "1.05rem",
+                  fontWeight: "900"
+                }}>
+                  {dodgeFeedback || `${score} / ${miniGame.obstacles.length} 회피 성공`}
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: `repeat(${miniGame.lanes.length}, 1fr)`, gap: "12px", width: "100%", maxWidth: "520px" }}>
+                  {miniGame.lanes.map((lane, idx) => (
+                    <button
+                      key={lane}
+                      onClick={() => {
+                        audioSynth.playBeep(620, 0.04);
+                        setDodgeLane(idx);
+                      }}
+                      className={`btn-cosmic ${idx === dodgeLane ? "btn-cyan" : "btn-outline"}`}
+                      style={{ padding: "14px", fontSize: "1.05rem", borderRadius: "16px", fontWeight: "900" }}
+                    >
+                      {lane}
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

@@ -4,6 +4,7 @@ import Dashboard from "./components/Dashboard";
 import Workspace from "./components/Workspace";
 import MiniGameContainer from "./components/MiniGameContainer";
 import { audioSynth } from "./utils/audioSynth";
+import { lessons } from "./data/lessons";
 
 export default function App() {
   const [view, setView] = useState("dashboard"); // dashboard | workspace | minigame
@@ -75,8 +76,17 @@ export default function App() {
   const handleCloseGame = (earnedBadge) => {
     let nextBadges = [...badges];
     let nextCurrent = currentLesson;
+    let nextCompleted = [...completedLessons];
+    let nextStars = totalStars;
 
     if (earnedBadge && selectedLessonId) {
+      if (!nextCompleted.includes(selectedLessonId)) {
+        nextCompleted.push(selectedLessonId);
+        nextStars += 1;
+        setCompletedLessons(nextCompleted);
+        setTotalStars(nextStars);
+      }
+
       // Award badge if not already unlocked
       if (!nextBadges.includes(selectedLessonId)) {
         nextBadges.push(selectedLessonId);
@@ -85,12 +95,12 @@ export default function App() {
 
       // If they finished the highest unlocked lesson, unlock the next one!
       if (selectedLessonId === currentLesson) {
-        nextCurrent = currentLesson + 1;
+        nextCurrent = Math.min(currentLesson + 1, lessons.length + 1);
         setCurrentLesson(nextCurrent);
       }
     }
 
-    saveProgress(nextCurrent, completedLessons, totalStars, nextBadges);
+    saveProgress(nextCurrent, nextCompleted, nextStars, nextBadges);
     setView("dashboard");
     setSelectedLessonId(null);
   };

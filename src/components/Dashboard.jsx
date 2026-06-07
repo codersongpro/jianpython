@@ -266,7 +266,7 @@ export default function Dashboard({
               lineHeight: "1.5",
               color: "#e0e7ff"
             }}>
-              {currentLesson <= 12 ? (
+              {currentLesson <= lessons.length ? (
                 <>
                   "지안 탐험가님! 오늘 배워볼 코스는 <strong>{currentLesson}단계</strong>예요. 
                   우주선에 시동을 걸고 반짝반짝 빛나는 파이썬 행성들을 함께 정복하러 가볼까요? 삐-빅!"
