@@ -4,6 +4,26 @@ import { runPythonCode, initPyodide } from "../utils/pyodideRunner";
 import { audioSynth } from "../utils/audioSynth";
 import { lessons } from "../data/lessons";
 
+// Extract comment instructions and clean code from starterCode
+const getCleanedStarter = (rawCode) => {
+  if (!rawCode) return { comments: [], cleanCode: "" };
+  const lines = rawCode.split("\n");
+  const comments = [];
+  const codeLines = [];
+  lines.forEach(line => {
+    if (line.trim().startsWith("#")) {
+      const cleanComment = line.trim().replace(/^#\s*/, "");
+      if (cleanComment) comments.push(cleanComment);
+    } else {
+      codeLines.push(line);
+    }
+  });
+  return {
+    comments,
+    cleanCode: codeLines.join("\n").trim()
+  };
+};
+
 export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   const isSandbox = lessonId === 0;
 
@@ -24,7 +44,8 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
       }
     : lessons.find((l) => l.id === lessonId);
 
-  const [code, setCode] = useState(lesson ? lesson.starterCode : "");
+  const { comments: starterComments, cleanCode: cleanStarterCode } = getCleanedStarter(lesson?.starterCode);
+  const [code, setCode] = useState(cleanStarterCode);
   const [stdout, setStdout] = useState("");
   const [error, setError] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -62,7 +83,8 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   // Reset states on lesson change
   useEffect(() => {
     if (lesson) {
-      setCode(lesson.starterCode);
+      const { cleanCode } = getCleanedStarter(lesson.starterCode);
+      setCode(cleanCode);
       setStdout("");
       setError(null);
       setIsSuccess(false);
@@ -162,28 +184,36 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
     }
   ];
 
-  // 지안이가 처음 코드창을 탭(터치)했을 때 주석 뒤쪽으로 커서를 자동으로 보내주는 마법 기능이에요!
+  // 지안이가 처음 코드창을 탭(터치)했을 때 커서를 자동으로 끝으로 보내주는 마법 기능이에요!
   const handleEditorFocus = (e) => {
     if (!hasBeenFocused) {
       setHasBeenFocused(true);
-      const currentCode = e.target.value;
-      const lines = currentCode.split("\n");
-      let cursorIndex = 0;
-      let i = 0;
-      
-      // '#'으로 시작하는 주석 설명 글들이나 빈 줄들의 길이를 더해서 다음 줄의 시작 위치를 찾아요
-      while (i < lines.length && (lines[i].trim().startsWith("#") || lines[i].trim() === "")) {
-        cursorIndex += lines[i].length + 1; // +1은 줄바꿈 문자('\n') 크기예요
-        i++;
-      }
-      
-      const targetPos = Math.min(currentCode.length, cursorIndex);
       const textarea = e.target;
-      
-      // 브라우저의 원래 포커스 커서 지정을 덮어쓸 수 있도록 아주 잠깐(10ms) 기다렸다가 안전하게 커서를 보내줘요
       setTimeout(() => {
-        textarea.setSelectionRange(targetPos, targetPos);
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
       }, 10);
+    }
+  };
+
+  // 탭(Tab) 키를 누르면 다음 버튼으로 이동하지 않고 들여쓰기(공백 4칸)가 입력되도록 제어해요.
+  const handleKeyDown = (e) => {
+    if (e.key === "Tab") {
+      e.preventDefault(); // 기본 포커스 이동 동작을 차단해요.
+      
+      const textarea = e.target;
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const currentVal = textarea.value;
+      
+      const indent = "    "; // 공백 4칸 들여쓰기
+      const newVal = currentVal.substring(0, start) + indent + currentVal.substring(end);
+      
+      setCode(newVal);
+      
+      // 커서 위치를 들여쓰기된 바로 뒤쪽으로 보내줘요.
+      setTimeout(() => {
+        textarea.selectionStart = textarea.selectionEnd = start + indent.length;
+      }, 0);
     }
   };
 
@@ -271,7 +301,8 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   const handleResetCode = () => {
     audioSynth.playBeep(300, 0.1);
     if (window.confirm("코드를 처음 상태로 되돌릴까요?")) {
-      setCode(lesson.starterCode);
+      const { cleanCode } = getCleanedStarter(lesson.starterCode);
+      setCode(cleanCode);
       setStdout("");
       setError(null);
       setIsSuccess(false);
@@ -807,12 +838,52 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
               </button>
             </div>
 
+            {/* 설명 주석을 코드창 위쪽에 가이드 카드로 표시 */}
+            {starterComments.length > 0 && (
+              <div style={{
+                background: "rgba(0, 240, 255, 0.05)",
+                border: "1.5px solid rgba(0, 240, 255, 0.25)",
+                borderRadius: "16px",
+                padding: "14px 18px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+                boxShadow: "0 0 15px rgba(0, 240, 255, 0.05)"
+              }}>
+                <div style={{
+                  color: "#00f0ff",
+                  fontWeight: "bold",
+                  fontSize: "1.05rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px"
+                }}>
+                  <span>💡</span> 이번 관문 미션 가이드
+                </div>
+                <ul style={{
+                  margin: 0,
+                  paddingLeft: "20px",
+                  color: "#cbd5e1",
+                  fontSize: "1.05rem",
+                  lineHeight: "1.6",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px"
+                }}>
+                  {starterComments.map((comment, index) => (
+                    <li key={index}>{comment}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
             <textarea
               ref={editorRef}
               value={code}
               onChange={(e) => setCode(e.target.value)}
               onFocus={handleEditorFocus}
               onBlur={handleEditorBlur}
+              onKeyDown={handleKeyDown}
               style={{
                 width: "100%",
                 height: "220px",
