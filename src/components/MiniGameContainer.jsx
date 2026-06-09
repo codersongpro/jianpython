@@ -58,12 +58,14 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   const [laserBeamActive, setLaserBeamActive] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
 
-  // 5. 피하기 게임 관련 상태들
-  const [dodgeLane, setDodgeLane] = useState(0);
-  const [currentDodgeIdx, setCurrentDodgeIdx] = useState(0);
-  const [obstacleY, setObstacleY] = useState(0);
-  const [dodgeFeedback, setDodgeFeedback] = useState("");
-  const [dodgeHit, setDodgeHit] = useState(false);
+  // 5. [개편] 조건 실드 디펜스 게임 관련 상태들 (기존 피하기 게임 대체)
+  const [dodgeLane, setDodgeLane] = useState(0); // 레인은 하위 호환성을 위해 유지
+  const [currentDodgeIdx, setCurrentDodgeIdx] = useState(0); // 현재 맞추어야 할 조건 인덱스
+  const [obstacleY, setObstacleY] = useState(0); // 운석의 Y 좌표
+  const [dodgeFeedback, setDodgeFeedback] = useState(""); // 정답/오답 결과 설명문 피드백
+  const [dodgeHit, setDodgeHit] = useState(false); // 오답 판정 시 충격 및 무적 프레임 활성화 여부
+  const [activeShield, setActiveShield] = useState(""); // 현재 작동 중인 실드 에너지 ("True" | "False" | "")
+  const [shieldSuccess, setShieldSuccess] = useState(false); // 실드 가동 성공(방어 성공) 애니메이션 활성화 여부
 
   // 레슨이 변경될 때 모든 상태 초기화
   useEffect(() => {
@@ -89,12 +91,17 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setHitPulse(false);
     setLaserBeamActive(false);
     setApiConnected(false);
+    
+    // 실드 디펜스 관련 상태 리셋
     setDodgeLane(0);
     setCurrentDodgeIdx(0);
     setObstacleY(0);
     setDodgeFeedback("");
     setDodgeHit(false);
+    setActiveShield("");
+    setShieldSuccess(false);
     setDefenseFeedback("바이러스를 요격할 대포를 준비하세요!");
+
 
     // [새로 추가됨] 타이머 및 기록 상태 리셋
     setStartTime(null);
@@ -314,48 +321,81 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     return () => clearInterval(interval);
   }, [miniGame, gameWon, currentBeatIdx]);
 
-  // 피하기 게임 장애물 낙하 루프
+  // [개편] 조건 실드 디펜스 게임 운석 낙하 및 충돌 판정 루프
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "dodge-code" || gameWon || dodgeHit) return;
+    // 게임 타입이 shield-defense일 때만 작동하며, 이미 이겼거나 피격 딜레이 중에는 멈춤
+    if (!miniGame || miniGame.type !== "shield-defense" || gameWon || dodgeHit) return;
 
     const interval = setInterval(() => {
       setObstacleY((y) => {
-        if (y >= 78) {
+        // y가 74% 지점에 도달하면 우주선의 보호막 쉴드라인 충돌로 판정
+        if (y >= 74) {
           const obstacle = miniGame.obstacles[currentDodgeIdx];
-          const isSafe = dodgeLane === obstacle.safeLane;
+          
+          // safeLane === 0 이면 True 실드가 안전, safeLane === 1 이면 False 실드가 안전
+          const isCorrect = (obstacle.safeLane === 0 && activeShield === "True") ||
+                            (obstacle.safeLane === 1 && activeShield === "False");
 
-          if (isSafe) {
+          if (isCorrect) {
+            // 방어 성공 시: 딩동 코인 소리
             audioSynth.playCoin();
             const nextScore = score + 1;
             setScore(nextScore);
-            setDodgeFeedback(obstacle.success || "멋지게 피했어요!");
+            setDodgeFeedback(obstacle.success || "멋지게 방어막으로 막아냈어요!");
+            
+            // 성공 플래시 이펙트 트리거
+            setShieldSuccess(true);
+            setTimeout(() => setShieldSuccess(false), 700);
 
+            // 보호막 지점(가로 50%, 세로 78%)에 파란색/분홍색 글로우 파티클 생성
+            const particleColor = activeShield === "True" ? "#00f0ff" : "#ff007f";
+            triggerPopParticles(50, 78, particleColor);
+
+            // 모든 운석을 안전하게 막아내면 클리어 처리
             if (nextScore >= miniGame.obstacles.length) {
               setTimeout(() => {
                 handleGameSuccess();
               }, 300);
             } else {
+              // 다음 운석으로 교체
               setCurrentDodgeIdx(currentDodgeIdx + 1);
-              setTimeout(() => setDodgeFeedback(""), 700);
+              // 다음 운석 판단을 위해 실드 해제
+              setActiveShield("");
+              setTimeout(() => setDodgeFeedback(""), 800);
             }
           } else {
+            // 방어 실패 시 (틀린 쉴드를 켰거나 쉴드를 안 켠 경우): 에러 소리
             audioSynth.playFail();
-            setDodgeHit(true);
-            setDodgeFeedback(obstacle.fail || "앗! 조건을 다시 보고 안전한 길로 움직여요.");
+            setDodgeHit(true); // 피격 딜레이
+
+            // 조건식의 참/거짓 판단 힌트 설명
+            const explanation = obstacle.safeLane === 0 
+              ? "앗! 이 조건식은 [True (참)] 입니다. 하늘색 True 실드를 켰어야 해요!" 
+              : "앗! 이 조건식은 [False (거짓)] 입니다. 분홍색 False 실드를 켰어야 해요!";
+            setDodgeFeedback(explanation);
+
+            // 화면을 흔들고 타이머에 3초 패널티를 더함 (+3초)
+            setIsScreenShaking(true);
+            setStartTime((prev) => prev - 3000);
+            setPenaltyActive(true);
+
             setTimeout(() => {
               setDodgeHit(false);
+              setIsScreenShaking(false);
+              setPenaltyActive(false);
               setDodgeFeedback("");
-            }, 900);
+            }, 1600);
           }
 
-          return 0;
+          return 0; // 운석 시작 고도로 리셋
         }
-        return y + 1.1;
+        // 운석이 아래로 떨어지는 등속도 업데이트
+        return y + 1.25;
       });
-    }, 55);
+    }, 50);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, dodgeHit, currentDodgeIdx, dodgeLane, score]);
+  }, [miniGame, gameWon, dodgeHit, currentDodgeIdx, activeShield, score]);
 
   // 파티클(풍선 터진 파편) 튀기는 물리 이펙트 생성
   const triggerPopParticles = (x, y, color) => {
@@ -967,110 +1007,223 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             )}
 
             {/* ===================== GAME 2-1: DODGE CODE ===================== */}
-            {miniGame.type === "dodge-code" && (
-              <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "20px", alignItems: "center" }}>
+            {/* ===================== GAME 2-1: [개편] SHIELD DEFENSE (조건 실드 디펜스) ===================== */}
+            {miniGame.type === "shield-defense" && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "24px", alignItems: "center" }}>
+                {/* 상단: 다가오는 조건식을 교육용으로 크게 보여주는 가독성 카드 */}
                 <div style={{
-                  background: "rgba(0, 240, 255, 0.08)",
-                  border: "1.5px solid rgba(0, 240, 255, 0.35)",
-                  borderRadius: "18px",
-                  padding: "12px 24px",
-                  textAlign: "center"
+                  background: "rgba(5, 6, 20, 0.6)",
+                  border: "1.5px solid rgba(0, 240, 255, 0.25)",
+                  borderRadius: "20px",
+                  padding: "16px 32px",
+                  textAlign: "center",
+                  boxShadow: "0 0 20px rgba(0, 240, 255, 0.15)",
+                  maxWidth: "500px",
+                  width: "100%"
                 }}>
-                  <div style={{ fontSize: "0.85rem", color: "#a5b4fc", fontWeight: "bold" }}>다가오는 코드</div>
-                  <strong style={{ fontSize: "1.55rem", color: "white", fontFamily: "monospace" }}>
+                  <div style={{ fontSize: "0.85rem", color: "#a5b4fc", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "4px" }}>
+                    🛰️ 위협 신호 조건 분석기
+                  </div>
+                  <strong style={{ fontSize: "1.7rem", color: "#00f0ff", fontFamily: "monospace", textShadow: "0 0 10px rgba(0, 240, 255, 0.5)" }}>
                     {miniGame.obstacles[currentDodgeIdx].label}
                   </strong>
                 </div>
 
+                {/* 중앙: 우주 및 보호막 방어 필드 */}
                 <div style={{
                   width: "100%",
-                  height: "300px",
-                  background: "#050614",
-                  border: "2px solid rgba(0, 240, 255, 0.2)",
+                  height: "320px",
+                  background: "radial-gradient(circle at center, #0b0f2d 0%, #02030e 100%)",
+                  border: "2px solid rgba(0, 240, 255, 0.15)",
                   borderRadius: "24px",
                   position: "relative",
                   overflow: "hidden",
-                  display: "grid",
-                  gridTemplateColumns: `repeat(${miniGame.lanes.length}, 1fr)`
+                  boxShadow: "inset 0 0 30px rgba(0, 240, 255, 0.1)"
                 }}>
-                  {miniGame.lanes.map((lane, idx) => (
-                    <div
-                      key={lane}
-                      style={{
-                        borderLeft: idx === 0 ? "none" : "1px dashed rgba(255,255,255,0.12)",
-                        background: idx === dodgeLane ? "rgba(0, 240, 255, 0.08)" : "transparent",
-                        position: "relative"
-                      }}
-                    >
-                      <div style={{
-                        position: "absolute",
-                        bottom: "10px",
-                        left: "50%",
-                        transform: "translateX(-50%)",
-                        color: idx === dodgeLane ? "#00f0ff" : "#94a3b8",
-                        fontWeight: "900"
-                      }}>
-                        {lane}
-                      </div>
-                    </div>
-                  ))}
-
+                  {/* 은은한 격자 무늬 배경 선으로 깊이감 연출 */}
                   <div style={{
                     position: "absolute",
-                    left: `${((miniGame.obstacles[currentDodgeIdx].dangerLane + 0.5) / miniGame.lanes.length) * 100}%`,
+                    inset: 0,
+                    backgroundImage: "linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)",
+                    backgroundSize: "20px 20px"
+                  }} />
+
+                  {/* 1. 상단에서 떨어지는 수식 운석 (Obstacle) */}
+                  <div style={{
+                    position: "absolute",
+                    left: "50%",
                     top: `${obstacleY}%`,
                     transform: "translate(-50%, -50%)",
-                    background: dodgeHit ? "#ef4444" : "linear-gradient(135deg, #ff007f, #bd00ff)",
-                    border: "2px solid white",
+                    background: dodgeHit 
+                      ? "linear-gradient(135deg, #ef4444, #991b1b)" 
+                      : "linear-gradient(135deg, #1e293b, #0f172a)",
+                    border: dodgeHit 
+                      ? "2px solid #f87171" 
+                      : "2px solid rgba(255, 215, 0, 0.5)",
                     borderRadius: "16px",
-                    padding: "10px 14px",
+                    padding: "12px 20px",
                     color: "white",
                     fontFamily: "monospace",
                     fontWeight: "900",
-                    boxShadow: "0 0 20px rgba(255, 0, 127, 0.45)",
-                    maxWidth: "190px",
+                    fontSize: "1.1rem",
+                    boxShadow: dodgeHit 
+                      ? "0 0 25px rgba(239, 68, 68, 0.7)" 
+                      : "0 0 15px rgba(255, 215, 0, 0.2)",
+                    maxWidth: "280px",
                     textAlign: "center",
-                    transition: "top 0.055s linear"
+                    transition: "top 0.055s linear",
+                    zIndex: 5
                   }}>
-                    {miniGame.obstacles[currentDodgeIdx].hazard || "코드 운석"}
+                    {/* 운석의 데코레이션 위험 아이콘 */}
+                    <span style={{ marginRight: "6px" }}>☄️</span>
+                    {miniGame.obstacles[currentDodgeIdx].hazard || "조건 운석"}
                   </div>
 
+                  {/* 2. 중앙 하단: 지안이의 우주선 & 네온 보호막 버블 */}
                   <div style={{
                     position: "absolute",
-                    left: `${((dodgeLane + 0.5) / miniGame.lanes.length) * 100}%`,
-                    bottom: "44px",
+                    bottom: "20px",
+                    left: "50%",
                     transform: "translateX(-50%)",
-                    fontSize: "3.2rem",
-                    transition: "left 0.16s ease",
-                    filter: dodgeHit ? "drop-shadow(0 0 14px #ef4444)" : "drop-shadow(0 0 12px #00f0ff)"
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "180px",
+                    height: "180px",
+                    zIndex: 2
                   }}>
-                    🛸
+                    {/* 네온 에너지 보호막 실드 원 */}
+                    <div style={{
+                      width: "120px",
+                      height: "120px",
+                      borderRadius: "50%",
+                      position: "absolute",
+                      transition: "all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+                      zIndex: 1,
+                      
+                      // 1) 참 실드 켜졌을 때 (하늘색)
+                      // 2) 거짓 실드 켜졌을 때 (분홍색)
+                      // 3) 대기 중 또는 피격 중 상태 분기 스타일 적용
+                      border: shieldSuccess
+                        ? "4px solid #10b981"
+                        : dodgeHit
+                          ? "4px dashed #ef4444"
+                          : activeShield === "True"
+                            ? "3.5px solid #00f0ff"
+                            : activeShield === "False"
+                              ? "3.5px solid #ff007f"
+                              : "2px dashed rgba(255, 255, 255, 0.25)",
+                      
+                      boxShadow: shieldSuccess
+                        ? "0 0 35px rgba(16, 185, 129, 0.8)"
+                        : dodgeHit
+                          ? "0 0 25px rgba(239, 68, 68, 0.6)"
+                          : activeShield === "True"
+                            ? "0 0 25px rgba(0, 240, 255, 0.7)"
+                            : activeShield === "False"
+                              ? "0 0 25px rgba(255, 0, 127, 0.7)"
+                              : "none",
+                      
+                      background: shieldSuccess
+                        ? "rgba(16, 185, 129, 0.12)"
+                        : dodgeHit
+                          ? "rgba(239, 68, 68, 0.08)"
+                          : activeShield === "True"
+                            ? "rgba(0, 240, 255, 0.08)"
+                            : activeShield === "False"
+                              ? "rgba(255, 0, 127, 0.08)"
+                              : "rgba(255, 255, 255, 0.02)",
+
+                      transform: shieldSuccess ? "scale(1.18)" : dodgeHit ? "scale(0.95)" : "scale(1)"
+                    }}>
+                      {/* 보호막 안의 상태 텍스트 라벨 */}
+                      <div style={{
+                        position: "absolute",
+                        top: "14px",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        fontSize: "0.75rem",
+                        color: activeShield === "True" ? "#00f0ff" : activeShield === "False" ? "#ff007f" : "rgba(255,255,255,0.4)",
+                        fontWeight: "bold",
+                        textShadow: activeShield ? "0 0 6px currentColor" : "none"
+                      }}>
+                        {activeShield ? `${activeShield} SHIELD` : "READY"}
+                      </div>
+                    </div>
+
+                    {/* 우주선 그래픽 */}
+                    <div style={{
+                      fontSize: "3.6rem",
+                      zIndex: 3,
+                      animation: activeShield ? "none" : "animate-float 2.5s ease-in-out infinite",
+                      transform: dodgeHit ? "scale(0.85) rotate(5deg)" : "none",
+                      transition: "transform 0.15s ease",
+                      filter: dodgeHit 
+                        ? "drop-shadow(0 0 15px #ef4444) saturate(2)" 
+                        : shieldSuccess
+                          ? "drop-shadow(0 0 15px #10b981)"
+                          : activeShield === "True"
+                            ? "drop-shadow(0 0 12px #00f0ff)"
+                            : activeShield === "False"
+                              ? "drop-shadow(0 0 12px #ff007f)"
+                              : "none"
+                    }}>
+                      🛸
+                    </div>
                   </div>
                 </div>
 
+                {/* 결과 피드백 메세지 판 */}
                 <div style={{
-                  minHeight: "28px",
-                  color: dodgeFeedback.includes("앗") ? "#ef4444" : "#10b981",
-                  fontSize: "1.05rem",
-                  fontWeight: "900"
+                  minHeight: "32px",
+                  color: dodgeFeedback.includes("앗") ? "#f87171" : "#34d399",
+                  fontSize: "1.1rem",
+                  fontWeight: "900",
+                  textAlign: "center",
+                  textShadow: dodgeFeedback ? "0 0 8px rgba(0,0,0,0.5)" : "none"
                 }}>
-                  {dodgeFeedback || `${score} / ${miniGame.obstacles.length} 회피 성공`}
+                  {dodgeFeedback || `🛡️ 현재 방어 진행률: ${score} / ${miniGame.obstacles.length}`}
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: `repeat(${miniGame.lanes.length}, 1fr)`, gap: "12px", width: "100%", maxWidth: "520px" }}>
-                  {miniGame.lanes.map((lane, idx) => (
-                    <button
-                      key={lane}
-                      onClick={() => {
-                        audioSynth.playBeep(620, 0.04);
-                        setDodgeLane(idx);
-                      }}
-                      className={`btn-cosmic ${idx === dodgeLane ? "btn-cyan" : "btn-outline"}`}
-                      style={{ padding: "14px", fontSize: "1.05rem", borderRadius: "16px", fontWeight: "900" }}
-                    >
-                      {lane}
-                    </button>
-                  ))}
+                {/* 보호막 발사기 조작 패널 (True / False 실드 작동 버튼) */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", width: "100%", maxWidth: "520px" }}>
+                  <button
+                    onClick={() => {
+                      audioSynth.playBeep(440, 0.05); // 도 음계 충전 효과음
+                      setActiveShield("True");
+                    }}
+                    className={`btn-cosmic ${activeShield === "True" ? "btn-cyan" : "btn-outline"}`}
+                    style={{ 
+                      padding: "16px", 
+                      fontSize: "1.15rem", 
+                      borderRadius: "18px", 
+                      fontWeight: "900",
+                      borderColor: "#00f0ff",
+                      boxShadow: activeShield === "True" ? "0 0 20px rgba(0, 240, 255, 0.45)" : "none",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    🔵 True (참) 실드 가동
+                  </button>
+                  <button
+                    onClick={() => {
+                      audioSynth.playBeep(659, 0.05); // 미 음계 충전 효과음
+                      setActiveShield("False");
+                    }}
+                    className={`btn-cosmic ${activeShield === "False" ? "btn-pink" : "btn-outline"}`}
+                    style={{ 
+                      padding: "16px", 
+                      fontSize: "1.15rem", 
+                      borderRadius: "18px", 
+                      fontWeight: "900",
+                      borderColor: "#ff007f",
+                      boxShadow: activeShield === "False" ? "0 0 20px rgba(255, 0, 127, 0.45)" : "none",
+                      transition: "all 0.2s ease"
+                    }}
+                  >
+                    🔴 False (거짓) 실드 가동
+                  </button>
                 </div>
               </div>
             )}

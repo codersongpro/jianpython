@@ -258,15 +258,16 @@ export const lessons = [
       answer: "Tab 키",
       feedback: "훌륭해요! Tab 키(또는 스페이스바 4번)로 밀어 적어야 'if 조건 방 안의 내용'으로 인정해줘요! 🚧"
     },
+    // [미니게임 개편] 참길/거짓길 피하기 게임을 '조건 실드 디펜스' 게임으로 교체합니다.
     miniGame: {
-      type: "dodge-code",
-      title: "if 관문 운석 피하기",
-      description: "다가오는 조건식을 보고 참이면 [참 길], 거짓이면 [거짓 길]로 우주선을 재빨리 이동하세요!",
-      lanes: ["참 길", "거짓 길"],
+      type: "shield-defense", // 신규 게임 타입 지정
+      title: "if 조건 실드 디펜스",
+      description: "다가오는 수식 운석이 참(True)이면 [True 실드], 거짓(False)이면 [False 실드]를 작동해 방어하세요!",
+      lanes: ["True 실드", "False 실드"], // 보호막 종류
       obstacles: [
-        { label: "distance < 5 (distance = 3)", dangerLane: 1, safeLane: 0, hazard: "if 운석", success: "참 길 통과! if 문이 열렸어요." },
-        { label: "distance > 10 (distance = 3)", dangerLane: 0, safeLane: 1, hazard: "조건 운석", success: "거짓 길 통과! 조건을 잘 읽었어요." },
-        { label: "distance == 3 (distance = 3)", dangerLane: 1, safeLane: 0, hazard: "비교 운석", success: "정확해요! 같은 값인지 잘 확인했어요." }
+        { label: "distance < 5 (distance = 3)", dangerLane: 1, safeLane: 0, hazard: "if 운석", success: "방어 성공! 참(True)이므로 if 문이 활성화되었습니다. 🛡️" },
+        { label: "distance > 10 (distance = 3)", dangerLane: 0, safeLane: 1, hazard: "조건 운석", success: "방어 성공! 거짓(False) 조건을 잘 판별했습니다. 🛡️" },
+        { label: "distance == 3 (distance = 3)", dangerLane: 1, safeLane: 0, hazard: "비교 운석", success: "정확해요! 두 값이 같으므로 참(True) 실드로 방어 완료! 🛡️" }
       ]
     }
   },
@@ -295,15 +296,16 @@ export const lessons = [
       answer: "else",
       feedback: "정답! if 조건이 아닐 때 작동할 방을 else: 기호 아래 들여쓰기로 작성한답니다. 🛂"
     },
+    // [미니게임 개편] if-else 활주로 피하기 게임을 'if-else 실드 디펜스'로 변경합니다.
     miniGame: {
-      type: "dodge-code",
-      title: "if-else 두 갈래 활주로",
-      description: "조건이 참이면 if 활주로, 거짓이면 else 활주로로 순발력 있게 피하세요!",
-      lanes: ["if 활주로", "else 활주로"],
+      type: "shield-defense", // 신규 게임 타입 지정
+      title: "if-else 실드 디펜스",
+      description: "조건이 참(True)이면 [True 실드], 거짓(False)이면 [False 실드]를 작동시켜 우주선을 보호하세요!",
+      lanes: ["True 실드", "False 실드"], // 보호막 종류
       obstacles: [
-        { label: "energy >= 50 (energy = 80)", dangerLane: 1, safeLane: 0, hazard: "출발 관문", success: "if 활주로 진입! 에너지가 충분해요." },
-        { label: "energy < 50 (energy = 80)", dangerLane: 0, safeLane: 1, hazard: "충전 관문", success: "else 활주로 진입! 거짓 조건을 잘 피했어요." },
-        { label: "else 실행? (energy = 80)", dangerLane: 0, safeLane: 1, hazard: "갈림길 운석", success: "맞아요. if가 참이면 else는 실행되지 않아요." }
+        { label: "energy >= 50 (energy = 80)", dangerLane: 1, safeLane: 0, hazard: "출발 관문", success: "방어 성공! 참(True)이므로 if 방어막이 활성화되었습니다. 🛡️" },
+        { label: "energy < 50 (energy = 80)", dangerLane: 0, safeLane: 1, hazard: "충전 관문", success: "방어 성공! 거짓(False)이므로 else 방어막으로 막아냈습니다. 🛡️" },
+        { label: "else 실행? (energy = 80)", dangerLane: 0, safeLane: 1, hazard: "갈림길 운석", success: "맞아요! if가 참이므로 else 문은 실행되지 않아 False입니다. 🛡️" }
       ]
     }
   },
@@ -312,8 +314,10 @@ export const lessons = [
     planet: "Planet Galaxy (은하수 행성)",
     title: "별 그리기 대작전! for 반복문",
     story: "은하수 행성에 왔어요. 똑같은 행동을 자동으로 여러 번 반복해 은하수를 수놓아 볼까요?",
+    // 레벨 10: for 반복문을 사용한 은하수 별 그리기 실습
     instructions: [
       "for i in range(5): 반복문을 작성하고, 그 아래 들여쓰기(Tab) 줄에 print(\"★\")를 적어 별을 그리세요.",
+      "💡 별 기호(★) 입력 팁: 키보드의 자음 [ㅁ]을 누르고 [한자] 키(또는 우측 Ctrl)를 누르거나, 여기 지문의 '★'을 드래그해서 복사(Ctrl + C) 후 붙여넣기(Ctrl + V) 하시면 쉬워요!",
       "for는 반복하라는 뜻이고, range(5)는 대기열 번호인 0, 1, 2, 3, 4를 제공하는 명령어예요.",
       "i는 임시 배달원으로, 0부터 4까지의 숫자를 하나씩 i 상자에 얹어가며 아래 방 코드를 총 5번 반복하여 돌려줍니다."
     ],
@@ -519,15 +523,16 @@ export const lessons = [
       answer: "!=",
       feedback: "정답! `==`는 같은지 묻는 기호이고, `!=`는 같지 않은지(다르지 않은지) 묻는 기호입니다. 느낌표(!)는 '아니다'라는 뜻이에요! 🌈"
     },
+    // [미니게임 개편] 다른 얼굴 외계인 피하기 게임을 '비교 연산 실드 디펜스'로 변경합니다.
     miniGame: {
-      type: "dodge-code",
-      title: "다른 얼굴 외계인 피하기",
-      description: "서로 다르면 [다름 길], 같으면 [같음 길]로 재빨리 이동해 외계인 추격을 피하세요!",
-      lanes: ["다름 길", "같음 길"],
+      type: "shield-defense", // 신규 게임 타입 지정
+      title: "비교 연산 실드 디펜스",
+      description: "같지 않다(!=) 수식이 참(True)이면 [True 실드], 거짓(False)이면 [False 실드]를 가동해 외계 신호를 막아내세요!",
+      lanes: ["True 실드", "False 실드"], // 보호막 종류
       obstacles: [
-        { label: "5 != 5", dangerLane: 0, safeLane: 1, hazard: "쌍둥이 외계인", success: "같음 길 성공! 두 값은 같아요." },
-        { label: "10 != 3", dangerLane: 1, safeLane: 0, hazard: "비교 외계인", success: "다름 길 성공! 두 값은 달라요." },
-        { label: "'A' != 'B'", dangerLane: 1, safeLane: 0, hazard: "문자 외계인", success: "다름 길 성공! 글자도 비교할 수 있어요." }
+        { label: "5 != 5", dangerLane: 0, safeLane: 1, hazard: "쌍둥이 외계인", success: "방어 성공! 5는 5와 같으므로 거짓(False)입니다. 🛡️" },
+        { label: "10 != 3", dangerLane: 1, safeLane: 0, hazard: "비교 외계인", success: "방어 성공! 10과 3은 서로 다르므로 참(True)입니다. 🛡️" },
+        { label: "'A' != 'B'", dangerLane: 1, safeLane: 0, hazard: "문자 외계인", success: "방어 성공! 다른 글자이므로 참(True) 실드로 방어 완료! 🛡️" }
       ]
     }
   },
