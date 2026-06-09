@@ -15,7 +15,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 게임 진행 상태
   const [gameWon, setGameWon] = useState(false);
-  const [gameLost, setGameLost] = useState(false);
   const [score, setScore] = useState(0);
 
   // 시각 효과 상태들
@@ -69,7 +68,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   // 레슨이 변경될 때 모든 상태 초기화
   useEffect(() => {
     setGameWon(false);
-    setGameLost(false);
     setScore(0);
     setParticles([]);
     setConfetti([]);
@@ -106,15 +104,21 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setPenaltyActive(false);
 
     if (miniGame) {
+      // localStorage에서 해당 레슨의 기존 최고 기록 불러오기
+      const savedBest = localStorage.getItem(`jianpython_lesson_${lessonId}_best_time`);
+      if (savedBest) {
+        setBestRecord(parseFloat(savedBest));
+      } else {
+        setBestRecord(null);
+      }
+
       if (miniGame.type === "balloon-pop") {
-        // localStorage에서 해당 레슨의 기존 최고 기록 불러오기
-        const savedBest = localStorage.getItem(`jianpython_lesson_${lessonId}_best_time`);
-        if (savedBest) {
-          setBestRecord(parseFloat(savedBest));
-        } else {
-          setBestRecord(null);
-        }
         initializeBalloons();
+      } else {
+        // 풍선 외의 미니게임들은 로딩되자마자 타이머가 시작됩니다.
+        setStartTime(Date.now());
+        setElapsedTime(0);
+        setIsTimerRunning(true);
       }
     }
   }, [lessonId, miniGame]);
@@ -138,7 +142,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // [새로 추가됨] 실시간으로 흐르는 시간 계산 (타이머)
   useEffect(() => {
-    if (!isTimerRunning || gameWon || gameLost || !startTime) return;
+    if (!isTimerRunning || gameWon || !startTime) return;
 
     const timerInterval = setInterval(() => {
       // 시작 시간으로부터 경과된 초를 계산하여 업데이트 (50ms 단위)
@@ -244,7 +248,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 풍선 위아래 흔들림 및 둥실둥실 움직임 루프
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "balloon-pop" || gameWon || gameLost) return;
+    if (!miniGame || miniGame.type !== "balloon-pop" || gameWon) return;
 
     const interval = setInterval(() => {
       setBalloonList((prev) =>
@@ -274,15 +278,13 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 디펜스 게임 바이러스 행진 루프 (왼쪽으로 돌진)
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "code-defense" || gameWon || gameLost || enemyHit) return;
+    if (!miniGame || miniGame.type !== "code-defense" || gameWon || enemyHit) return;
 
     const interval = setInterval(() => {
       setEnemyX((x) => {
         if (x <= 20) {
           audioSynth.playFail();
-          setDefenseFeedback("🤖 앗! 바이러스가 보호막에 닿았습니다.");
-          setGameLost(true);
-          setIsTimerRunning(false);
+          setDefenseFeedback("🤖 앗! 바이러스가 보호막에 닿았어요. 안전 차단 후 뒤로 재소환합니다!");
           return 100;
         }
         return x - 1.2;
@@ -290,19 +292,19 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 45);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, gameLost, currentEnemyIdx, enemyHit]);
+  }, [miniGame, gameWon, currentEnemyIdx, enemyHit]);
 
   // 리듬 게임 판정 노트 흐름 루프 (왼쪽으로 질주)
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "rhythm-beat" || gameWon || gameLost) return;
+    if (!miniGame || miniGame.type !== "rhythm-beat" || gameWon) return;
 
     const interval = setInterval(() => {
       setNoteX((x) => {
         if (x <= 5) {
           audioSynth.playFail();
           setHitFeedback("놓쳤어요! 😮");
-          setGameLost(true);
-          setIsTimerRunning(false);
+          setCombo(0);
+          setTimeout(() => setHitFeedback(""), 800);
           return 100;
         }
         return x - 1;
@@ -310,11 +312,11 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 40);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, gameLost, currentBeatIdx]);
+  }, [miniGame, gameWon, currentBeatIdx]);
 
   // 피하기 게임 장애물 낙하 루프
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "dodge-code" || gameWon || gameLost || dodgeHit) return;
+    if (!miniGame || miniGame.type !== "dodge-code" || gameWon || dodgeHit) return;
 
     const interval = setInterval(() => {
       setObstacleY((y) => {
@@ -330,8 +332,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
             if (nextScore >= miniGame.obstacles.length) {
               setTimeout(() => {
-                audioSynth.playWin();
-                setGameWon(true);
+                handleGameSuccess();
               }, 300);
             } else {
               setCurrentDodgeIdx(currentDodgeIdx + 1);
@@ -341,8 +342,10 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             audioSynth.playFail();
             setDodgeHit(true);
             setDodgeFeedback(obstacle.fail || "앗! 조건을 다시 보고 안전한 길로 움직여요.");
-            setGameLost(true);
-            setIsTimerRunning(false);
+            setTimeout(() => {
+              setDodgeHit(false);
+              setDodgeFeedback("");
+            }, 900);
           }
 
           return 0;
@@ -352,7 +355,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 55);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, gameLost, dodgeHit, currentDodgeIdx, dodgeLane, score]);
+  }, [miniGame, gameWon, dodgeHit, currentDodgeIdx, dodgeLane, score]);
 
   // 파티클(풍선 터진 파편) 튀기는 물리 이펙트 생성
   const triggerPopParticles = (x, y, color) => {
@@ -405,14 +408,18 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 1. 풍선 터트리기 클릭 핸들러
   const handleBalloonClick = (balloon) => {
-    if (balloon.popped || gameWon || gameLost || errorBalloonId) return;
+    if (balloon.popped || gameWon || errorBalloonId) return;
 
-    // [방해 풍선 클릭 처리]: 실패 처리
+    // [방해 풍선 클릭 처리]: 패널티 부여 (+3초) 및 일시적 오답 상태 트리거
     if (balloon.isFake) {
       audioSynth.playFail();
       setErrorBalloonId(balloon.id);
-      setGameLost(true);
-      setIsTimerRunning(false);
+      
+      // 실시간 타이머 시작 지점을 3초 뒤로 미뤄 경과 시간을 3초 추가
+      setStartTime((prev) => prev - 3000);
+      setPenaltyActive(true);
+      setTimeout(() => setPenaltyActive(false), 1000);
+      setTimeout(() => setErrorBalloonId(null), 1000);
 
       // 터지는 시각적인 파티클도 붉은색 경고 느낌으로 연출
       const currentOffset = Math.sin(balloon.windPhase || 0) * 16;
@@ -475,17 +482,20 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         }
       }
     } else {
-      // 정답이 아니거나 순서가 맞지 않을 때
+      // 정답이 아니거나 순서가 맞지 않을 때: 패널티 부여 (+3초) 및 일시적 오답 상태 트리거
       audioSynth.playFail();
       setErrorBalloonId(balloon.id);
-      setGameLost(true);
-      setIsTimerRunning(false);
+      
+      setStartTime((prev) => prev - 3000);
+      setPenaltyActive(true);
+      setTimeout(() => setPenaltyActive(false), 1000);
+      setTimeout(() => setErrorBalloonId(null), 1000);
     }
   };
 
   // 2. 디펜스 게임 대포 발사 컨트롤러
   const handleDefenseShoot = (type) => {
-    if (projectiles.length > 0 || gameWon || gameLost || enemyHit) return;
+    if (projectiles.length > 0 || gameWon || enemyHit) return;
 
     setTurretType(type);
     setBaseRecoil(true);
@@ -524,8 +534,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
           setEnemyHit(false);
           const nextIdx = currentEnemyIdx + 1;
           if (nextIdx >= miniGame.enemies.length) {
-            audioSynth.playWin();
-            setGameWon(true);
+            handleGameSuccess();
           } else {
             setCurrentEnemyIdx(nextIdx);
             setEnemyX(100);
@@ -533,15 +542,14 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         }, 500);
       } else {
         audioSynth.playFail();
-        setDefenseFeedback("앗! 대포 속성이 바이러스와 맞지 않아요.");
-        setGameLost(true);
+        setDefenseFeedback("앗! 대포 속성이 바이러스와 맞지 않아요. (오조준 대기 패널티)");
       }
     }, 400);
   };
 
   // 3. 리듬 게임 키 판단 (O/X 클릭)
   const handleRhythmClick = (input) => {
-    if (gameWon || gameLost) return;
+    if (gameWon) return;
 
     const beat = miniGame.beats[currentBeatIdx];
     const inZone = noteX >= 8 && noteX <= 30;
@@ -549,8 +557,9 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     if (!inZone) {
       audioSynth.playFail();
       setHitFeedback("박자가 맞지 않아요! ⏰");
-      setGameLost(true);
-      setIsTimerRunning(false);
+      setCombo(0);
+      setNoteX(100);
+      setTimeout(() => setHitFeedback(""), 1000);
       return;
     }
 
@@ -574,8 +583,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
       setScore(nextScore);
 
       if (nextScore >= 3) {
-        audioSynth.playWin();
-        setGameWon(true);
+        handleGameSuccess();
       } else {
         const nextIdx = (currentBeatIdx + 1) % miniGame.beats.length;
         setCurrentBeatIdx(nextIdx);
@@ -585,28 +593,27 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     } else {
       audioSynth.playFail();
       setHitFeedback("앗! 참/거짓 판단이 틀렸어요. ❌");
-      setGameLost(true);
-      setIsTimerRunning(false);
+      setCombo(0);
+      setNoteX(100);
+      setTimeout(() => setHitFeedback(""), 1000);
     }
   };
 
   // 4. API 연결 주파수 가동
   const handleApiConnect = (option) => {
-    if (gameWon || gameLost || laserBeamActive) return;
+    if (gameWon || laserBeamActive) return;
 
     if (option.isCorrect) {
       audioSynth.playLaser();
       setLaserBeamActive(true);
       
       setTimeout(() => {
-        audioSynth.playWin();
         setLaserBeamActive(false);
         setApiConnected(true);
-        setGameWon(true);
+        handleGameSuccess();
       }, 1500);
     } else {
       audioSynth.playFail();
-      setGameLost(true);
     }
   };
 
@@ -678,67 +685,65 @@ export default function MiniGameContainer({ lessonId, onClose }) {
           />
         ))}
 
-        {!gameWon && !gameLost ? (
+        {!gameWon ? (
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "24px", alignItems: "center" }}>
             <p style={{ color: "#a5b4fc", fontSize: "1.1rem", textAlign: "center", fontWeight: "bold" }}>
               {miniGame.description}
             </p>
 
-            {/* ===================== [새로 추가됨] 풍선 게임 실시간 타이머 및 최고 기록 UI ===================== */}
-            {miniGame.type === "balloon-pop" && (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                background: "rgba(5, 6, 20, 0.6)",
-                padding: "10px 24px",
-                borderRadius: "30px",
-                border: "1.5px solid rgba(0, 240, 255, 0.25)",
-                boxShadow: "0 0 15px rgba(0, 240, 255, 0.1)",
-                transition: "all 0.3s ease",
-                position: "relative"
+            {/* ===================== [새로 추가됨] 실시간 타이머 및 최고 기록 UI ===================== */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              background: "rgba(5, 6, 20, 0.6)",
+              padding: "10px 24px",
+              borderRadius: "30px",
+              border: "1.5px solid rgba(0, 240, 255, 0.25)",
+              boxShadow: "0 0 15px rgba(0, 240, 255, 0.1)",
+              transition: "all 0.3s ease",
+              position: "relative"
+            }}>
+              <span style={{ color: "#a5b4fc", fontSize: "1rem", fontWeight: "bold" }}>⏱️ 지안이의 탈출 시간:</span>
+              <span style={{
+                color: penaltyActive ? "#ef4444" : "var(--color-neon-cyan)",
+                fontSize: "1.6rem",
+                fontWeight: "900",
+                fontFamily: "monospace",
+                minWidth: "90px",
+                textAlign: "right",
+                textShadow: penaltyActive ? "0 0 10px #ef4444" : "0 0 10px var(--color-neon-cyan)",
+                transition: "color 0.1s ease"
               }}>
-                <span style={{ color: "#a5b4fc", fontSize: "1rem", fontWeight: "bold" }}>⏱️ 지안이의 탈출 시간:</span>
+                {elapsedTime.toFixed(2)}초
+              </span>
+              
+              {/* 오답 패널티 트리거 경고 표시 */}
+              {penaltyActive && (
                 <span style={{
-                  color: penaltyActive ? "#ef4444" : "var(--color-neon-cyan)",
-                  fontSize: "1.6rem",
-                  fontWeight: "900",
-                  fontFamily: "monospace",
-                  minWidth: "90px",
-                  textAlign: "right",
-                  textShadow: penaltyActive ? "0 0 10px #ef4444" : "0 0 10px var(--color-neon-cyan)",
-                  transition: "color 0.1s ease"
+                  color: "#ef4444",
+                  fontSize: "0.95rem",
+                  fontWeight: "bold",
+                  marginLeft: "8px",
+                  animation: "shake-animation 0.3s ease",
+                  textShadow: "0 0 8px rgba(239, 68, 68, 0.7)"
                 }}>
-                  {elapsedTime.toFixed(2)}초
+                  +3초 ⚠️
                 </span>
-                
-                {/* 오답 패널티 트리거 경고 표시 */}
-                {penaltyActive && (
-                  <span style={{
-                    color: "#ef4444",
-                    fontSize: "0.95rem",
-                    fontWeight: "bold",
-                    marginLeft: "8px",
-                    animation: "shake-animation 0.3s ease",
-                    textShadow: "0 0 8px rgba(239, 68, 68, 0.7)"
-                  }}>
-                    +3초 ⚠️
-                  </span>
-                )}
+              )}
 
-                {bestRecord && (
-                  <span style={{
-                    color: "#ffd700",
-                    fontSize: "0.85rem",
-                    borderLeft: "1px solid rgba(255,255,255,0.15)",
-                    paddingLeft: "14px",
-                    marginLeft: "4px"
-                  }}>
-                    🏆 최고기록: {bestRecord.toFixed(2)}초
-                  </span>
-                )}
-              </div>
-            )}
+              {bestRecord && (
+                <span style={{
+                  color: "#ffd700",
+                  fontSize: "0.85rem",
+                  borderLeft: "1px solid rgba(255,255,255,0.15)",
+                  paddingLeft: "14px",
+                  marginLeft: "4px"
+                }}>
+                  🏆 최고기록: {bestRecord.toFixed(2)}초
+                </span>
+              )}
+            </div>
 
             {/* ===================== GAME 1: BALLOON POP ===================== */}
             {miniGame.type === "balloon-pop" && (
@@ -1328,50 +1333,48 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             </div>
 
             {/* ===================== [새로 추가됨] 최종 기록 및 역대 최고 기록 표시판 ===================== */}
-            {miniGame.type === "balloon-pop" && (
-              <div className="glass-panel" style={{
-                padding: "18px 36px",
-                borderColor: isNewRecord ? "var(--color-neon-cyan)" : "rgba(255, 255, 255, 0.1)",
-                background: "rgba(5, 6, 20, 0.75)",
-                borderRadius: "20px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                alignItems: "center",
-                boxShadow: isNewRecord ? "0 0 25px rgba(0, 240, 255, 0.3)" : "none",
-                transform: isNewRecord ? "scale(1.05)" : "none",
-                transition: "all 0.3s ease"
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                  <span style={{ fontSize: "1.1rem", color: "#cbd5e1" }}>⏱️ 지안이의 탈출 시간:</span>
-                  <strong style={{ fontSize: "1.9rem", color: "var(--color-neon-cyan)", fontFamily: "monospace" }}>
-                    {elapsedTime.toFixed(2)}초
-                  </strong>
-                </div>
-                
-                {isNewRecord ? (
-                  <div style={{
-                    background: "linear-gradient(90deg, #ff007f, #00f0ff)",
-                    color: "white",
-                    padding: "4px 16px",
-                    borderRadius: "12px",
-                    fontSize: "0.95rem",
-                    fontWeight: "bold",
-                    marginTop: "6px",
-                    boxShadow: "0 0 10px rgba(0, 240, 255, 0.5)",
-                    animation: "pulse-cyan 1.5s infinite"
-                  }}>
-                    🎉 최고 기록 경신! 대단해요 지안이! 🎉
-                  </div>
-                ) : (
-                  bestRecord && (
-                    <div style={{ fontSize: "0.9rem", color: "#94a3b8" }}>
-                      🏆 개인 최고 기록: {bestRecord.toFixed(2)}초
-                    </div>
-                  )
-                )}
+            <div className="glass-panel" style={{
+              padding: "18px 36px",
+              borderColor: isNewRecord ? "var(--color-neon-cyan)" : "rgba(255, 255, 255, 0.1)",
+              background: "rgba(5, 6, 20, 0.75)",
+              borderRadius: "20px",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+              alignItems: "center",
+              boxShadow: isNewRecord ? "0 0 25px rgba(0, 240, 255, 0.3)" : "none",
+              transform: isNewRecord ? "scale(1.05)" : "none",
+              transition: "all 0.3s ease"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <span style={{ fontSize: "1.1rem", color: "#cbd5e1" }}>⏱️ 지안이의 탈출 시간:</span>
+                <strong style={{ fontSize: "1.9rem", color: "var(--color-neon-cyan)", fontFamily: "monospace" }}>
+                  {elapsedTime.toFixed(2)}초
+                </strong>
               </div>
-            )}
+              
+              {isNewRecord ? (
+                <div style={{
+                  background: "linear-gradient(90deg, #ff007f, #00f0ff)",
+                  color: "white",
+                  padding: "4px 16px",
+                  borderRadius: "12px",
+                  fontSize: "0.95rem",
+                  fontWeight: "bold",
+                  marginTop: "6px",
+                  boxShadow: "0 0 10px rgba(0, 240, 255, 0.5)",
+                  animation: "pulse-cyan 1.5s infinite"
+                }}>
+                  🎉 최고 기록 경신! 대단해요 지안이! 🎉
+                </div>
+              ) : (
+                bestRecord && (
+                  <div style={{ fontSize: "0.9rem", color: "#94a3b8" }}>
+                    🏆 개인 최고 기록: {bestRecord.toFixed(2)}초
+                  </div>
+                )
+              )}
+            </div>
 
             <div style={{
               background: "rgba(0, 240, 255, 0.05)",
@@ -1399,73 +1402,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
               }}
             >
               🎖️ 배지 획득하고 지도로 가기
-            </button>
-          </div>
-        ) : (
-          /* 미니게임 실패 화면 */
-          <div style={{
-            textAlign: "center",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "24px",
-            zIndex: 10
-          }}>
-            <div 
-              style={{
-                fontSize: "7rem",
-                width: "160px",
-                height: "160px",
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #ef4444, #7f1d1d)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                boxShadow: "0 0 40px rgba(239, 68, 68, 0.4)",
-                border: "4px solid white"
-              }}
-              className="shake-animation"
-            >
-              🛸💥
-            </div>
-
-            <div>
-              <h3 style={{ fontSize: "2.8rem", color: "#f87171", lineHeight: "1.1" }}>
-                탈출 실패... 😢
-              </h3>
-              <p style={{ color: "#a5b4fc", fontSize: "1.15rem", marginTop: "8px" }}>
-                아쉽게도 미니게임 미션을 해결하지 못했습니다.
-              </p>
-            </div>
-
-            <div style={{
-              background: "rgba(239, 68, 68, 0.05)",
-              padding: "16px 20px",
-              borderRadius: "20px",
-              border: "1px solid rgba(239, 68, 68, 0.2)",
-              maxWidth: "400px",
-              color: "#e2e8f0",
-              fontSize: "1.05rem",
-              lineHeight: "1.5"
-            }}>
-              🤖 "삐-빅! 장애물에 닿았거나 해답 코드가 잘못 작동했어요.<br />
-              지도로 돌아가서 레슨의 규칙을 복습하고 다시 도전해볼까요?"
-            </div>
-
-            <button 
-              onClick={() => onClose(false)}
-              className="btn-cosmic btn-outline"
-              style={{
-                padding: "16px 40px",
-                fontSize: "1.3rem",
-                fontWeight: "900",
-                width: "100%",
-                maxWidth: "320px",
-                borderColor: "#ef4444",
-                color: "#ef4444"
-              }}
-            >
-              🏠 대시보드로 돌아가기
             </button>
           </div>
         )}
