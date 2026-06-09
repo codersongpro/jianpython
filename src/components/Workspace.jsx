@@ -61,6 +61,14 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   const [showScratchCompareModal, setShowScratchCompareModal] = useState(false); // 스크래치 비교 사전 모달 표시 여부
 
   const editorRef = useRef(null);
+  const lineNumbersRef = useRef(null);
+  const [isEditorFocused, setIsEditorFocused] = useState(false);
+
+  const handleScroll = (e) => {
+    if (lineNumbersRef.current) {
+      lineNumbersRef.current.scrollTop = e.target.scrollTop;
+    }
+  };
 
   // Initialize Pyodide
   useEffect(() => {
@@ -186,6 +194,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
 
   // 지안이가 처음 코드창을 탭(터치)했을 때 커서를 자동으로 끝으로 보내주는 마법 기능이에요!
   const handleEditorFocus = (e) => {
+    setIsEditorFocused(true);
     if (!hasBeenFocused) {
       setHasBeenFocused(true);
       const textarea = e.target;
@@ -219,12 +228,13 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
 
   // 코드창 바깥을 터치했다가 다시 터치할 때도 동작할 수 있도록 포커스가 풀리면 초기화해줘요
   const handleEditorBlur = () => {
+    setIsEditorFocused(false);
     setHasBeenFocused(false);
   };
 
   // Insert code helper
   const handleInsertCode = (textToInsert, cursorOffset = 0) => {
-    audioSynth.playBeep(700, 0.05);
+    audioSynth.playSelect();
     const textarea = editorRef.current;
     if (!textarea) return;
 
@@ -260,6 +270,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
 
     if (result.success) {
       if (isSandbox) {
+        audioSynth.playCoin();
         setIsSuccess(false);
         return;
       }
@@ -268,7 +279,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
       const isCorrect = lesson.validation(code, result.stdout);
       if (isCorrect) {
         if (!isSuccess) {
-          audioSynth.playWin(); // Play victory fanfare arpeggio
+          audioSynth.playSuccess(); // Play victory fanfare arpeggio
         }
         setIsSuccess(true);
         setError(null); // 에러 초기화
@@ -308,6 +319,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
       setIsSuccess(false);
       setQuizSolved(false);
       setQuizError(false);
+      audioSynth.playLaser();
     }
   };
 
@@ -429,7 +441,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
 
             <button
               onClick={() => {
-                audioSynth.playBeep(660, 0.08);
+                audioSynth.playSelect();
                 setShowStoryModal(false);
               }}
               className="btn-cosmic btn-cyan animate-pulse-cyan"
@@ -484,7 +496,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
               </div>
               <button 
                 onClick={() => {
-                  audioSynth.playBeep(600, 0.08);
+                  audioSynth.playSelect();
                   setShowScratchCompareModal(false);
                 }}
                 className="btn-cosmic btn-outline"

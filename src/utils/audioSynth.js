@@ -149,5 +149,106 @@ export const audioSynth = {
     // Soft two-pitch robot fail sound (A3 then F3)
     playThump(220, 0, 0.12);
     playThump(174.61, 0.1, 0.15);
+  },
+
+  // 6. Uplifting C-major arpeggio (C5-E5-G5-C6-E6) for successful mission validation
+  playSuccess: () => {
+    if (isMuted) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const playTone = (freq, delay, dur) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+      gain.gain.setValueAtTime(0.04, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + dur);
+    };
+
+    const step = 0.07;
+    playTone(523.25, 0, 0.15); // C5
+    playTone(659.25, step, 0.15); // E5
+    playTone(783.99, step * 2, 0.15); // G5
+    playTone(1046.50, step * 3, 0.15); // C6
+    playTone(1318.51, step * 4, 0.3); // E6
+  },
+
+  // 7. Descending minor-sounding sequence (F4-Eb4-D4-C4) for game over
+  playFail: () => {
+    if (isMuted) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const playTone = (freq, delay, dur) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+      gain.gain.setValueAtTime(0.05, ctx.currentTime + delay);
+      gain.gain.linearRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + dur);
+    };
+
+    const step = 0.12;
+    playTone(349.23, 0, 0.18);
+    playTone(311.13, step, 0.18);
+    playTone(293.66, step * 2, 0.18);
+    playTone(261.63, step * 3, 0.4);
+  },
+
+  // 8. Soft retro bubble click / select pop
+  playSelect: () => {
+    if (isMuted) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(987.77, ctx.currentTime); // B5
+    osc.frequency.exponentialRampToValueAtTime(587.33, ctx.currentTime + 0.05); // D5
+
+    gain.gain.setValueAtTime(0.03, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.05);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.05);
+  },
+
+  // 9. Joyful 8-note rapid sweep/trill for badge collection
+  playBadge: () => {
+    if (isMuted) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const playTone = (freq, delay, dur) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+      gain.gain.setValueAtTime(0.04, ctx.currentTime + delay);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + dur);
+    };
+
+    const notes = [1046.50, 1174.66, 1318.51, 1396.91, 1567.98, 1760.00, 1975.53, 2093.00];
+    notes.forEach((freq, idx) => {
+      playTone(freq, idx * 0.04, 0.1);
+    });
   }
 };

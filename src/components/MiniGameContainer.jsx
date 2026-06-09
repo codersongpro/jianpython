@@ -15,6 +15,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 게임 진행 상태
   const [gameWon, setGameWon] = useState(false);
+  const [gameLost, setGameLost] = useState(false);
   const [score, setScore] = useState(0);
 
   // 시각 효과 상태들
@@ -68,6 +69,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   // 레슨이 변경될 때 모든 상태 초기화
   useEffect(() => {
     setGameWon(false);
+    setGameLost(false);
     setScore(0);
     setParticles([]);
     setConfetti([]);
@@ -136,7 +138,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // [새로 추가됨] 실시간으로 흐르는 시간 계산 (타이머)
   useEffect(() => {
-    if (!isTimerRunning || gameWon || !startTime) return;
+    if (!isTimerRunning || gameWon || gameLost || !startTime) return;
 
     const timerInterval = setInterval(() => {
       // 시작 시간으로부터 경과된 초를 계산하여 업데이트 (50ms 단위)
@@ -242,7 +244,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 풍선 위아래 흔들림 및 둥실둥실 움직임 루프
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "balloon-pop" || gameWon) return;
+    if (!miniGame || miniGame.type !== "balloon-pop" || gameWon || gameLost) return;
 
     const interval = setInterval(() => {
       setBalloonList((prev) =>
@@ -272,13 +274,15 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 디펜스 게임 바이러스 행진 루프 (왼쪽으로 돌진)
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "code-defense" || gameWon || enemyHit) return;
+    if (!miniGame || miniGame.type !== "code-defense" || gameWon || gameLost || enemyHit) return;
 
     const interval = setInterval(() => {
       setEnemyX((x) => {
         if (x <= 20) {
-          audioSynth.playError();
-          setDefenseFeedback("🤖 앗! 바이러스가 보호막에 닿았어요. 안전 차단 후 뒤로 재소환합니다!");
+          audioSynth.playFail();
+          setDefenseFeedback("🤖 앗! 바이러스가 보호막에 닿았습니다.");
+          setGameLost(true);
+          setIsTimerRunning(false);
           return 100;
         }
         return x - 1.2;
@@ -286,30 +290,31 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 45);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, currentEnemyIdx, enemyHit]);
+  }, [miniGame, gameWon, gameLost, currentEnemyIdx, enemyHit]);
 
   // 리듬 게임 판정 노트 흐름 루프 (왼쪽으로 질주)
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "rhythm-beat" || gameWon) return;
+    if (!miniGame || miniGame.type !== "rhythm-beat" || gameWon || gameLost) return;
 
     const interval = setInterval(() => {
       setNoteX((x) => {
         if (x <= 5) {
+          audioSynth.playFail();
           setHitFeedback("놓쳤어요! 😮");
-          setCombo(0);
-          setTimeout(() => setHitFeedback(""), 800);
+          setGameLost(true);
+          setIsTimerRunning(false);
           return 100;
         }
-        return x - 2;
+        return x - 1;
       });
     }, 40);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, currentBeatIdx]);
+  }, [miniGame, gameWon, gameLost, currentBeatIdx]);
 
   // 피하기 게임 장애물 낙하 루프
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "dodge-code" || gameWon || dodgeHit) return;
+    if (!miniGame || miniGame.type !== "dodge-code" || gameWon || gameLost || dodgeHit) return;
 
     const interval = setInterval(() => {
       setObstacleY((y) => {
@@ -333,23 +338,21 @@ export default function MiniGameContainer({ lessonId, onClose }) {
               setTimeout(() => setDodgeFeedback(""), 700);
             }
           } else {
-            audioSynth.playError();
+            audioSynth.playFail();
             setDodgeHit(true);
             setDodgeFeedback(obstacle.fail || "앗! 조건을 다시 보고 안전한 길로 움직여요.");
-            setTimeout(() => {
-              setDodgeHit(false);
-              setDodgeFeedback("");
-            }, 900);
+            setGameLost(true);
+            setIsTimerRunning(false);
           }
 
           return 0;
         }
-        return y + 3.2;
+        return y + 1.1;
       });
     }, 55);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, dodgeHit, currentDodgeIdx, dodgeLane, score]);
+  }, [miniGame, gameWon, gameLost, dodgeHit, currentDodgeIdx, dodgeLane, score]);
 
   // 파티클(풍선 터진 파편) 튀기는 물리 이펙트 생성
   const triggerPopParticles = (x, y, color) => {
@@ -402,18 +405,14 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 1. 풍선 터트리기 클릭 핸들러
   const handleBalloonClick = (balloon) => {
-    if (balloon.popped || gameWon || errorBalloonId) return;
+    if (balloon.popped || gameWon || gameLost || errorBalloonId) return;
 
-    // [방해 풍선 클릭 처리]: 페널티(시간 지연)와 에러 알림
+    // [방해 풍선 클릭 처리]: 실패 처리
     if (balloon.isFake) {
-      audioSynth.playError();
+      audioSynth.playFail();
       setErrorBalloonId(balloon.id);
-      setTimeout(() => setErrorBalloonId(null), 600);
-
-      // 경과 시간을 3초 손해 보게 함 (시작 시간을 3초 전으로 후퇴시킴)
-      setStartTime((prev) => prev - 3000);
-      setPenaltyActive(true);
-      setTimeout(() => setPenaltyActive(false), 1000);
+      setGameLost(true);
+      setIsTimerRunning(false);
 
       // 터지는 시각적인 파티클도 붉은색 경고 느낌으로 연출
       const currentOffset = Math.sin(balloon.windPhase || 0) * 16;
@@ -477,15 +476,16 @@ export default function MiniGameContainer({ lessonId, onClose }) {
       }
     } else {
       // 정답이 아니거나 순서가 맞지 않을 때
-      audioSynth.playError();
+      audioSynth.playFail();
       setErrorBalloonId(balloon.id);
-      setTimeout(() => setErrorBalloonId(null), 600);
+      setGameLost(true);
+      setIsTimerRunning(false);
     }
   };
 
   // 2. 디펜스 게임 대포 발사 컨트롤러
   const handleDefenseShoot = (type) => {
-    if (projectiles.length > 0 || gameWon || enemyHit) return;
+    if (projectiles.length > 0 || gameWon || gameLost || enemyHit) return;
 
     setTurretType(type);
     setBaseRecoil(true);
@@ -532,24 +532,25 @@ export default function MiniGameContainer({ lessonId, onClose }) {
           }
         }, 500);
       } else {
-        audioSynth.playError();
-        setDefenseFeedback("앗! 대포 속성이 바이러스와 맞지 않아요. 다른 대포를 조준해봐요!");
+        audioSynth.playFail();
+        setDefenseFeedback("앗! 대포 속성이 바이러스와 맞지 않아요.");
+        setGameLost(true);
       }
     }, 400);
   };
 
   // 3. 리듬 게임 키 판단 (O/X 클릭)
   const handleRhythmClick = (input) => {
-    if (gameWon) return;
+    if (gameWon || gameLost) return;
 
     const beat = miniGame.beats[currentBeatIdx];
-    const inZone = noteX >= 10 && noteX <= 25;
+    const inZone = noteX >= 8 && noteX <= 30;
 
     if (!inZone) {
-      audioSynth.playBeep(300, 0.08);
-      setHitFeedback("박자가 너무 빠르거나 늦어요! ⏰");
-      setCombo(0);
-      setTimeout(() => setHitFeedback(""), 800);
+      audioSynth.playFail();
+      setHitFeedback("박자가 맞지 않아요! ⏰");
+      setGameLost(true);
+      setIsTimerRunning(false);
       return;
     }
 
@@ -582,16 +583,16 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         setTimeout(() => setHitFeedback(""), 800);
       }
     } else {
-      audioSynth.playError();
+      audioSynth.playFail();
       setHitFeedback("앗! 참/거짓 판단이 틀렸어요. ❌");
-      setCombo(0);
-      setTimeout(() => setHitFeedback(""), 800);
+      setGameLost(true);
+      setIsTimerRunning(false);
     }
   };
 
   // 4. API 연결 주파수 가동
   const handleApiConnect = (option) => {
-    if (gameWon || laserBeamActive) return;
+    if (gameWon || gameLost || laserBeamActive) return;
 
     if (option.isCorrect) {
       audioSynth.playLaser();
@@ -604,13 +605,16 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         setGameWon(true);
       }, 1500);
     } else {
-      audioSynth.playError();
-      alert("앗! 주파수가 다릅니다. 올바른 주파수를 연결해주세요!");
+      audioSynth.playFail();
+      setGameLost(true);
     }
   };
 
   const handleClaimBadge = () => {
-    onClose(true); // 배지 획득 완료 후 대시보드 복귀
+    audioSynth.playBadge();
+    setTimeout(() => {
+      onClose(true); // 배지 획득 완료 후 대시보드 복귀
+    }, 400);
   };
 
   return (
@@ -674,7 +678,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
           />
         ))}
 
-        {!gameWon ? (
+        {!gameWon && !gameLost ? (
           <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: "24px", alignItems: "center" }}>
             <p style={{ color: "#a5b4fc", fontSize: "1.1rem", textAlign: "center", fontWeight: "bold" }}>
               {miniGame.description}
@@ -1395,6 +1399,73 @@ export default function MiniGameContainer({ lessonId, onClose }) {
               }}
             >
               🎖️ 배지 획득하고 지도로 가기
+            </button>
+          </div>
+        ) : (
+          /* 미니게임 실패 화면 */
+          <div style={{
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: "24px",
+            zIndex: 10
+          }}>
+            <div 
+              style={{
+                fontSize: "7rem",
+                width: "160px",
+                height: "160px",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #ef4444, #7f1d1d)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 0 40px rgba(239, 68, 68, 0.4)",
+                border: "4px solid white"
+              }}
+              className="shake-animation"
+            >
+              🛸💥
+            </div>
+
+            <div>
+              <h3 style={{ fontSize: "2.8rem", color: "#f87171", lineHeight: "1.1" }}>
+                탈출 실패... 😢
+              </h3>
+              <p style={{ color: "#a5b4fc", fontSize: "1.15rem", marginTop: "8px" }}>
+                아쉽게도 미니게임 미션을 해결하지 못했습니다.
+              </p>
+            </div>
+
+            <div style={{
+              background: "rgba(239, 68, 68, 0.05)",
+              padding: "16px 20px",
+              borderRadius: "20px",
+              border: "1px solid rgba(239, 68, 68, 0.2)",
+              maxWidth: "400px",
+              color: "#e2e8f0",
+              fontSize: "1.05rem",
+              lineHeight: "1.5"
+            }}>
+              🤖 "삐-빅! 장애물에 닿았거나 해답 코드가 잘못 작동했어요.<br />
+              지도로 돌아가서 레슨의 규칙을 복습하고 다시 도전해볼까요?"
+            </div>
+
+            <button 
+              onClick={() => onClose(false)}
+              className="btn-cosmic btn-outline"
+              style={{
+                padding: "16px 40px",
+                fontSize: "1.3rem",
+                fontWeight: "900",
+                width: "100%",
+                maxWidth: "320px",
+                borderColor: "#ef4444",
+                color: "#ef4444"
+              }}
+            >
+              🏠 대시보드로 돌아가기
             </button>
           </div>
         )}
