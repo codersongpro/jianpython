@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Play, Lock, CheckCircle, Award, Volume2, VolumeX, HelpCircle, X } from "lucide-react";
+import { useState } from "react";
+import { Play, Lock, CheckCircle, Award, Volume2, VolumeX, X } from "lucide-react";
 import { lessons } from "../data/lessons";
 import { audioSynth } from "../utils/audioSynth";
 
@@ -123,7 +123,7 @@ export default function Dashboard({
       </header>
 
       {/* Main Roadmap Area */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "32px", alignItems: "start" }}>
+      <div className="dashboard-layout" style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "32px", alignItems: "start" }}>
         {/* Planet Map (Left Column) */}
         <section className="glass-panel" style={{ padding: "32px", display: "flex", flexDirection: "column", gap: "20px", position: "relative" }}>
           <h2 style={{ fontSize: "2.2rem", color: "#00f0ff", borderBottom: "1px solid rgba(255,255,255,0.1)", paddingBottom: "12px" }}>
@@ -173,7 +173,7 @@ export default function Dashboard({
                 >
                   <div
                     onClick={() => handlePlanetClick(lesson)}
-                    className="glass-panel"
+                    className="glass-panel lesson-planet-card"
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -248,7 +248,7 @@ export default function Dashboard({
         </section>
 
         {/* Astronaut Profile & Badge Cabinet (Right Column) */}
-        <aside style={{ display: "flex", flexDirection: "column", gap: "32px", position: "sticky", top: "24px" }}>
+        <aside className="dashboard-sidebar" style={{ display: "flex", flexDirection: "column", gap: "32px", position: "sticky", top: "24px" }}>
           {/* Pydi Assistant Advice Bubble */}
           <div className="glass-panel neon-cyan-glow" style={{ padding: "24px", position: "relative" }}>
             <div style={{ display: "flex", gap: "16px", alignItems: "center", marginBottom: "12px" }}>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { X, Award, ShieldAlert, Zap } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X } from "lucide-react";
 import { lessons } from "../data/lessons";
 import { audioSynth } from "../utils/audioSynth";
 
@@ -14,6 +14,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   ];
 
   // 게임 진행 상태
+  const [gameStarted, setGameStarted] = useState(false);
   const [gameWon, setGameWon] = useState(false);
   const [score, setScore] = useState(0);
 
@@ -37,9 +38,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 2. 디펜스 게임 관련 상태들
   const [enemyX, setEnemyX] = useState(100); // 적의 가로 위치 %
-  const [currentEnemyIdx, setCurrentEnemyIdx] = useState(0);
-  const [turretType, setTurretType] = useState(""); // 발사할 대포 타입 (string | number)
-  const [defenseFeedback, setDefenseFeedback] = useState("바이러스를 요격할 대포를 준비하세요!");
+  const [currentEnemyIdx, setCurrentEnemyIdx] = useState(0);  const [defenseFeedback, setDefenseFeedback] = useState("바이러스를 요격할 대포를 준비하세요!");
   const [projectiles, setProjectiles] = useState([]);
   const [blasts, setBlasts] = useState([]);
   const [baseRecoil, setBaseRecoil] = useState(false);
@@ -58,9 +57,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   const [laserBeamActive, setLaserBeamActive] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
 
-  // 5. [개편] 조건 실드 디펜스 게임 관련 상태들 (기존 피하기 게임 대체)
-  const [dodgeLane, setDodgeLane] = useState(0); // 레인은 하위 호환성을 위해 유지
-  const [currentDodgeIdx, setCurrentDodgeIdx] = useState(0); // 현재 맞추어야 할 조건 인덱스
+  // 5. [개편] 조건 실드 디펜스 게임 관련 상태들 (기존 피하기 게임 대체)  const [currentDodgeIdx, setCurrentDodgeIdx] = useState(0); // 현재 맞추어야 할 조건 인덱스
   const [obstacleY, setObstacleY] = useState(0); // 운석의 Y 좌표
   const [dodgeFeedback, setDodgeFeedback] = useState(""); // 정답/오답 결과 설명문 피드백
   const [dodgeHit, setDodgeHit] = useState(false); // 오답 판정 시 충격 및 무적 프레임 활성화 여부
@@ -69,6 +66,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 레슨이 변경될 때 모든 상태 초기화
   useEffect(() => {
+    setGameStarted(false);
     setGameWon(false);
     setScore(0);
     setParticles([]);
@@ -92,9 +90,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setLaserBeamActive(false);
     setApiConnected(false);
     
-    // 실드 디펜스 관련 상태 리셋
-    setDodgeLane(0);
-    setCurrentDodgeIdx(0);
+    // 실드 디펜스 관련 상태 리셋    setCurrentDodgeIdx(0);
     setObstacleY(0);
     setDodgeFeedback("");
     setDodgeHit(false);
@@ -121,13 +117,9 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
       if (miniGame.type === "balloon-pop") {
         initializeBalloons();
-      } else {
-        // 풍선 외의 미니게임들은 로딩되자마자 타이머가 시작됩니다.
-        setStartTime(Date.now());
-        setElapsedTime(0);
-        setIsTimerRunning(true);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId, miniGame]);
 
   // 게임 승리 시 축하 폭죽(Confetti) 효과
@@ -247,15 +239,14 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setTargetCharIdx(0);
 
     // [새로 추가됨] 풍선 띄워짐과 동시에 타이머 개시
-    setStartTime(Date.now());
     setElapsedTime(0);
-    setIsTimerRunning(true);
+    setIsTimerRunning(false);
     setIsNewRecord(false);
   };
 
   // 풍선 위아래 흔들림 및 둥실둥실 움직임 루프
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "balloon-pop" || gameWon) return;
+    if (!gameStarted || !miniGame || miniGame.type !== "balloon-pop" || gameWon) return;
 
     const interval = setInterval(() => {
       setBalloonList((prev) =>
@@ -281,11 +272,11 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon]);
+  }, [gameStarted, miniGame, gameWon]);
 
   // 디펜스 게임 바이러스 행진 루프 (왼쪽으로 돌진)
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "code-defense" || gameWon || enemyHit) return;
+    if (!gameStarted || !miniGame || miniGame.type !== "code-defense" || gameWon || enemyHit) return;
 
     const interval = setInterval(() => {
       setEnemyX((x) => {
@@ -299,11 +290,11 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 45);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, currentEnemyIdx, enemyHit]);
+  }, [gameStarted, miniGame, gameWon, currentEnemyIdx, enemyHit]);
 
   // 리듬 게임 판정 노트 흐름 루프 (왼쪽으로 질주)
   useEffect(() => {
-    if (!miniGame || miniGame.type !== "rhythm-beat" || gameWon) return;
+    if (!gameStarted || !miniGame || miniGame.type !== "rhythm-beat" || gameWon) return;
 
     const interval = setInterval(() => {
       setNoteX((x) => {
@@ -319,12 +310,12 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 40);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, currentBeatIdx]);
+  }, [gameStarted, miniGame, gameWon, currentBeatIdx]);
 
   // [개편] 조건 실드 디펜스 게임 운석 낙하 및 충돌 판정 루프
   useEffect(() => {
     // 게임 타입이 shield-defense일 때만 작동하며, 이미 이겼거나 피격 딜레이 중에는 멈춤
-    if (!miniGame || miniGame.type !== "shield-defense" || gameWon || dodgeHit) return;
+    if (!gameStarted || !miniGame || miniGame.type !== "shield-defense" || gameWon || dodgeHit) return;
 
     const interval = setInterval(() => {
       setObstacleY((y) => {
@@ -395,7 +386,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }, 50);
 
     return () => clearInterval(interval);
-  }, [miniGame, gameWon, dodgeHit, currentDodgeIdx, activeShield, score]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameStarted, miniGame, gameWon, dodgeHit, currentDodgeIdx, activeShield, score]);
 
   // 파티클(풍선 터진 파편) 튀기는 물리 이펙트 생성
   const triggerPopParticles = (x, y, color) => {
@@ -422,10 +414,10 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   };
 
   // [새로 추가됨] 미니게임 클리어 성공 처리 헬퍼 함수
-  const handleGameSuccess = (finalTargetIdx = targetCharIdx) => {
+  const handleGameSuccess = () => {
     setIsTimerRunning(false);
     // 현재 시각 기준 최종 경과된 밀리초를 초 단위로 픽스
-    const finalTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(2));
+    const finalTime = startTime ? parseFloat(((Date.now() - startTime) / 1000).toFixed(2)) : 0;
     setElapsedTime(finalTime);
 
     const recordKey = `jianpython_lesson_${lessonId}_best_time`;
@@ -446,9 +438,20 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // ===================== GAME ACTIONS =====================
 
+  const handleStartGame = () => {
+    audioSynth.playSelect();
+    setGameStarted(true);
+    setStartTime(Date.now());
+    setElapsedTime(0);
+    setIsTimerRunning(true);
+    setPenaltyActive(false);
+    setDodgeFeedback("");
+    setDefenseFeedback("바이러스를 막을 준비 완료!");
+  };
+
   // 1. 풍선 터트리기 클릭 핸들러
   const handleBalloonClick = (balloon) => {
-    if (balloon.popped || gameWon || errorBalloonId) return;
+    if (!gameStarted || balloon.popped || gameWon || errorBalloonId) return;
 
     // [방해 풍선 클릭 처리]: 패널티 부여 (+3초) 및 일시적 오답 상태 트리거
     if (balloon.isFake) {
@@ -535,10 +538,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 2. 디펜스 게임 대포 발사 컨트롤러
   const handleDefenseShoot = (type) => {
-    if (projectiles.length > 0 || gameWon || enemyHit) return;
-
-    setTurretType(type);
-    setBaseRecoil(true);
+    if (projectiles.length > 0 || gameWon || enemyHit) return;    setBaseRecoil(true);
     setMuzzleFlash(true);
     
     setTimeout(() => setBaseRecoil(false), 400);
@@ -785,6 +785,33 @@ export default function MiniGameContainer({ lessonId, onClose }) {
               )}
             </div>
 
+            {!gameStarted ? (
+              <div className="glass-panel" style={{
+                width: "100%",
+                maxWidth: "540px",
+                padding: "28px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "18px",
+                textAlign: "center",
+                borderColor: "rgba(0, 240, 255, 0.35)"
+              }}>
+                <div style={{ fontSize: "3.5rem" }}>🚀</div>
+                <h3 style={{ color: "#00f0ff", fontSize: "2rem", margin: 0 }}>준비됐나요?</h3>
+                <p style={{ color: "#cbd5e1", fontSize: "1.05rem", lineHeight: 1.5, margin: 0 }}>
+                  문제 설명을 읽고 시작하면 시간이 기록돼요. 틀려도 다시 막을 수 있으니 침착하게 골라보세요.
+                </p>
+                <button
+                  onClick={handleStartGame}
+                  className="btn-cosmic btn-cyan"
+                  style={{ padding: "16px 34px", fontSize: "1.2rem", fontWeight: 900 }}
+                >
+                  시작하기
+                </button>
+              </div>
+            ) : (
+              <>
             {/* ===================== GAME 1: BALLOON POP ===================== */}
             {miniGame.type === "balloon-pop" && (
               <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
@@ -845,7 +872,6 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                           background: "none",
                           border: "none",
                           cursor: "pointer",
-                          outline: "none",
                           transform: "translate(-50%, -50%)",
                           zIndex: 10,
                           transition: isError ? "none" : "top 0.05s linear, left 0.05s linear"
@@ -1446,6 +1472,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   ))}
                 </div>
               </div>
+            )}
+              </>
             )}
           </div>
         ) : (

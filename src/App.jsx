@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState } from "react";
 import StarfieldBackground from "./components/StarfieldBackground";
 import Dashboard from "./components/Dashboard";
 import Workspace from "./components/Workspace";
@@ -6,39 +6,43 @@ import MiniGameContainer from "./components/MiniGameContainer";
 import { audioSynth } from "./utils/audioSynth";
 import { lessons } from "./data/lessons";
 
+const readJsonArray = (key) => {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+};
+
+const readStoredNumber = (key, fallback, min, max) => {
+  const value = Number.parseInt(localStorage.getItem(key) || "", 10);
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(Math.max(value, min), max);
+};
+
 export default function App() {
   const [view, setView] = useState("dashboard"); // dashboard | workspace | minigame
   const [selectedLessonId, setSelectedLessonId] = useState(null);
 
   // Persistence States (Local Storage)
-  const [currentLesson, setCurrentLesson] = useState(1);
-  const [completedLessons, setCompletedLessons] = useState([]);
-  const [totalStars, setTotalStars] = useState(0);
-  const [badges, setBadges] = useState([]);
-  const [isMuted, setIsMuted] = useState(false);
-
-  // Load progress on mount
-  useEffect(() => {
-    try {
-      const savedCurrent = localStorage.getItem("jian_current_lesson");
-      const savedCompleted = localStorage.getItem("jian_completed_lessons");
-      const savedStars = localStorage.getItem("jian_stars");
-      const savedBadges = localStorage.getItem("jian_badges");
-      const savedMute = localStorage.getItem("jian_mute");
-
-      if (savedCurrent) setCurrentLesson(parseInt(savedCurrent, 10));
-      if (savedCompleted) setCompletedLessons(JSON.parse(savedCompleted));
-      if (savedStars) setTotalStars(parseInt(savedStars, 10));
-      if (savedBadges) setBadges(JSON.parse(savedBadges));
-      if (savedMute) {
-        const muteVal = savedMute === "true";
-        setIsMuted(muteVal);
-        audioSynth.setMuteState(muteVal);
-      }
-    } catch (err) {
-      console.error("로컬 저장소 로딩 에러:", err);
-    }
-  }, []);
+  const [currentLesson, setCurrentLesson] = useState(() =>
+    readStoredNumber("jian_current_lesson", 1, 1, lessons.length + 1)
+  );
+  const [completedLessons, setCompletedLessons] = useState(() =>
+    readJsonArray("jian_completed_lessons").filter((id) => Number.isInteger(id) && id >= 1 && id <= lessons.length)
+  );
+  const [totalStars, setTotalStars] = useState(() =>
+    readStoredNumber("jian_stars", 0, 0, lessons.length)
+  );
+  const [badges, setBadges] = useState(() =>
+    readJsonArray("jian_badges").filter((id) => Number.isInteger(id) && id >= 1 && id <= lessons.length)
+  );
+  const [isMuted, setIsMuted] = useState(() => {
+    const muteVal = localStorage.getItem("jian_mute") === "true";
+    audioSynth.setMuteState(muteVal);
+    return muteVal;
+  });
 
   // Save progress changes
   const saveProgress = (updatedCurrent, updatedCompleted, updatedStars, updatedBadges) => {

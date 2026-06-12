@@ -181,6 +181,22 @@ h1, h2, h3 {
   transform: translateY(-2px);
 }
 
+.btn-cosmic:focus-visible,
+.magic-key-btn:focus-visible,
+.code-editor:focus-visible,
+.balloon-wobble:focus-visible,
+.balloon-error:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--color-star-yellow) !important;
+  outline-offset: 3px;
+}
+
+.workspace-layout,
+.dashboard-layout {
+  width: 100%;
+}
+
 /* Quick insertion keys styling */
 .magic-key-btn {
   background: rgba(255, 255, 255, 0.08);
@@ -200,6 +216,42 @@ h1, h2, h3 {
   border-color: var(--color-neon-cyan);
   color: white;
   transform: translateY(-1px);
+}
+
+@media (max-width: 900px) {
+  body {
+    height: auto;
+    min-height: 100vh;
+  }
+
+  .dashboard-layout,
+  .workspace-layout {
+    grid-template-columns: 1fr !important;
+    gap: 20px !important;
+  }
+
+  .dashboard-sidebar {
+    position: static !important;
+  }
+
+  .lesson-planet-card {
+    width: min(100%, 360px) !important;
+  }
+}
+
+@media (max-width: 560px) {
+  .glass-panel {
+    border-radius: 18px;
+  }
+
+  .btn-cosmic {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .lesson-planet-card {
+    width: 100% !important;
+  }
 }
 
 /* Keyboard typing game meteor effect */

@@ -321,7 +321,7 @@ export const lessons = [
       "for는 반복하라는 뜻이고, range(5)는 대기열 번호인 0, 1, 2, 3, 4를 제공하는 명령어예요.",
       "i는 임시 배달원으로, 0부터 4까지의 숫자를 하나씩 i 상자에 얹어가며 아래 방 코드를 총 5번 반복하여 돌려줍니다."
     ],
-    starterCode: "",
+    starterCode: "for i in range(5):\n    print(\"★\")\n",
     hints: {
       "IndentationError": "for 문도 if 문처럼 바로 아랫줄은 무조건 들여쓰기(Tab)를 해서 방을 만들어야 해요!",
       "NameError": "for나 range 단어 스펠링을 틀리지 않았는지 눈을 크게 뜨고 살펴보세요!"
@@ -354,7 +354,7 @@ export const lessons = [
       "magic.get_weather()는 기상청 위성에 전파를 쏘아 현재 날씨를 배달해 달라고 부르는 마법 API 명령어예요.",
       "둘째 줄에 print(\"오늘 날씨는: \" + today_weather)를 작성해 글자와 받아온 정보를 풀칠해 출력하세요."
     ],
-    starterCode: "",
+    starterCode: "today_weather = magic.get_weather()\nprint(\"weather: \" + today_weather)\n",
     hints: {
       "AttributeError": "magic.get_weather() 의 소문자 대문자가 틀렸거나 점(.) 기호를 빠뜨리지 않았는지 보세요!",
       "TypeError": "날씨 글자를 다른 형식과 연산할 때 기호가 잘못 섞였는지 봐주세요."
@@ -390,11 +390,11 @@ export const lessons = [
       "magic.show_cat()은 고양이 위치로 통신 구조 빔을 쏘아 화면에 고양이 이미지를 뿅 띄워주는 이미지 구조 API 명령어예요.",
       "성공하면 콘솔창에 귀여운 8비트 고양이 그림이 소환되는 것을 볼 수 있어요."
     ],
-    starterCode: "",
+    starterCode: "magic.show_cat()\n",
     hints: {
       "AttributeError": "magic.show_cat() 철자가 맞는지 확인해보고, 괄호 ()가 잘 닫혀 있는지 봐요!"
     },
-    validation: (code, stdout) => code.includes("magic.show_cat"),
+    validation: (code) => code.includes("magic.show_cat"),
     quiz: {
       question: "잃어버린 아기 고양이를 즉시 우리 구조선 콘솔로 소환해주는 API 명령어의 이름은 무엇인가요?",
       options: ["magic.show_cat()", "magic.get_weather()"],
@@ -422,7 +422,7 @@ export const lessons = [
       "둘째 줄에 print(10 / 2)를 적으세요. 슬래시 / 기호는 파이썬에서 나누기를 해주는 나누기 기호예요.",
       "나누기를 계산하면 컴퓨터는 소수점 몫인 5.0 실수 형태로 친절하게 보여줍니다."
     ],
-    starterCode: "",
+    starterCode: "print(5 * 3)\nprint(10 / 2)\n",
     hints: {
       "SyntaxError": "곱하기(`*`)와 나누기(`/`) 기호가 제 위치에 들어갔는지, 괄호가 닫혀 있는지 확인하세요."
     },
@@ -451,7 +451,7 @@ export const lessons = [
       "둘째 줄에 print(10 % 3)을 적으세요. 퍼센트 %는 나눈 뒤 마지막 찌꺼기가 몇 개 남았는지 나머지만 구해줘요.",
       "보석 10개를 3명에게 나눴을 때의 몫(3)과 나머지(1) 결과를 각각 출력해 보세요."
     ],
-    starterCode: "",
+    starterCode: "print(10 // 3)\nprint(10 % 3)\n",
     hints: {
       "ZeroDivisionError": "0으로 나누려고 하면 컴퓨터가 놀라요! 나누는 수가 3인지 확인하세요."
     },
@@ -483,7 +483,7 @@ export const lessons = [
       "글자 카드 뒤에 * 5를 쓰면, 별 도장을 5번 쾅쾅 찍어 ★★★★★라는 길쭉한 글자로 증식 복제해 주는 마법이에요.",
       "글자 문자열과 숫자를 곱하기 연산자로 연결해 별 다섯 개가 출력되는지 테스트해 보세요."
     ],
-    starterCode: "",
+    starterCode: "print(\"hi\" * 5)\n",
     hints: {
       "TypeError": "글자끼리 곱하면 파이썬이 헷갈려해요! 꼭 글자 하나와 숫자를 곱해주세요."
     },
@@ -512,7 +512,7 @@ export const lessons = [
       "!=는 느낌표 !(아니다)와 =가 만나 '서로 같지 않니(다르니)?'라고 묻는 같지 않다 연산자예요.",
       "5와 3은 서로 다르므로 질문이 사실이라 파이썬은 맞다며 True를 대답해 줍니다."
     ],
-    starterCode: "",
+    starterCode: "print(5 != 3)\n",
     hints: {
       "SyntaxError": "반드시 느낌표가 먼저 와야 해요! =! 라고 순서를 바꾸어 적지 마세요."
     },
@@ -546,7 +546,7 @@ export const lessons = [
       "and는 양옆에 놓인 두 가지 조건식이 '둘 다 참(True)일 때만' 최종 참으로 인정해 주는 논리 연산자예요.",
       "한쪽이라도 거짓(False)이 있으면 무조건 거짓이 되어 문이 열리지 않아요."
     ],
-    starterCode: "",
+    starterCode: "print(True and True)\n",
     hints: {
       "NameError": "and는 모두 소문자로, True는 첫 글자를 대문자로 정확하게 적었는지 보세요."
     },
@@ -583,7 +583,7 @@ export const lessons = [
       "or는 양옆의 조건식 중 '어느 한쪽이라도 맞으면(True)' 통과시켜 전체를 참(True)으로 인정하는 논리 연산자예요.",
       "오로지 둘 다 거짓(False or False)일 때만 전체가 거짓이 돼요."
     ],
-    starterCode: "",
+    starterCode: "print(True or False)\n",
     hints: {
       "NameError": "or는 모두 소문자로, True/False는 첫 글자를 대문자로 정확하게 적었는지 보세요."
     },
@@ -652,11 +652,11 @@ export const lessons = [
       "대괄호 [ ]는 여러 개 목록을 한 주머니에 묶어 '리스트'를 만들겠다는 약속 기호예요.",
       "주머니 안의 각각의 데이터 조각들은 쉼표 , 기호로 서로 벽을 쳐서 담아줍니다."
     ],
-    starterCode: "",
+    starterCode: "fruits = [\"사과\", \"바나나\", \"체리\"]\nprint(fruits)\n",
     hints: {
       "SyntaxError": "대괄호 `[` 로 열어서 `]` 로 닫았는지 확인하시고, 문자열마다 따옴표가 잘 감싸졌는지 보세요."
     },
-    validation: (code, stdout) => {
+    validation: (code) => {
       const cleanCode = code.replace(/\s+/g, "");
       return cleanCode.includes('fruits=["사과","바나나","체리"]') || cleanCode.includes("fruits=['사과','바나나','체리']");
     },
@@ -840,7 +840,7 @@ export const lessons = [
       "def는 새로운 명령어(함수)를 조립해 알려주겠다는 정의(Define) 선언이고, : 끝에 붙여 내부 방을 조립해요.",
       "셋째 줄에 들여쓰기 없이 hello()를 적어 조립된 버튼을 꾹 눌러 작동(호출)시키세요."
     ],
-    starterCode: "",
+    starterCode: "def hello():\n    print(\"안녕!\")\n\nhello()\n",
     hints: {
       "SyntaxError": "def hello(): 끝에 마법 콜론(:)을 꼭 적어주었는지 보고, 호출할 때 hello() 괄호를 닫았는지 보세요.",
       "IndentationError": "함수 내부에 보관될 명령들은 무조건 들여쓰기(Tab)를 해서 방 안에 넣어주어야 합니다!"
@@ -870,7 +870,7 @@ export const lessons = [
       "괄호 속 name은 외부에서 던져주는 재료(인수)를 받아두기 위해 문앞에 뚫어놓은 매개변수 상자예요.",
       "함수 정의 아래 들여쓰기 없이 greeting(\"지안\")을 적어 name 투입구 상자에 지안이를 넣어 실행시키세요."
     ],
-    starterCode: "",
+    starterCode: "def greeting(name):\n    print(\"안녕 \" + name)\n\ngreeting(\"지안\")\n",
     hints: {
       "NameError": "greeting 함수 내부에서 name 변수의 스펠링을 바르게 입력했는지 살펴보세요."
     },
@@ -907,7 +907,7 @@ export const lessons = [
       "return은 함수 기계 내부에서 열심히 계산한 결과 정답 값을 기계 바깥으로 돌려보내 주는(반환) 마법이에요.",
       "마지막 줄에 print(add(3, 5))를 작성하여 8이 반환받아 화면에 출력되는지 확인하세요."
     ],
-    starterCode: "",
+    starterCode: "def add(a, b):\n    return a + b\n\nprint(add(3, 5))\n",
     hints: {
       "SyntaxError": "return은 소문자로 적어야 해요. return과 a + b 사이에 띄어쓰기를 꼭 넣어주세요."
     },

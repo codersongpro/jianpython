@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ArrowLeft, Play, RefreshCw, Terminal, HelpCircle, BookOpen } from "lucide-react";
 import { runPythonCode, initPyodide } from "../utils/pyodideRunner";
 import { audioSynth } from "../utils/audioSynth";
@@ -24,7 +24,7 @@ const getCleanedStarter = (rawCode) => {
   };
 };
 
-export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
+function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
   const isSandbox = lessonId === 0;
 
   const lesson = isSandbox 
@@ -61,14 +61,6 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   const [showScratchCompareModal, setShowScratchCompareModal] = useState(false); // 스크래치 비교 사전 모달 표시 여부
 
   const editorRef = useRef(null);
-  const lineNumbersRef = useRef(null);
-  const [isEditorFocused, setIsEditorFocused] = useState(false);
-
-  const handleScroll = (e) => {
-    if (lineNumbersRef.current) {
-      lineNumbersRef.current.scrollTop = e.target.scrollTop;
-    }
-  };
 
   // Initialize Pyodide
   useEffect(() => {
@@ -88,22 +80,6 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
     };
   }, []);
 
-  // Reset states on lesson change
-  useEffect(() => {
-    if (lesson) {
-      const { cleanCode } = getCleanedStarter(lesson.starterCode);
-      setCode(cleanCode);
-      setStdout("");
-      setError(null);
-      setIsSuccess(false);
-      setQuizSolved(false);
-      setQuizError(false);
-      setShowHint(false);
-      setShowStoryModal(true); // 레슨 이동 시 마다 스토리를 다시 먼저 보여줌
-      setHasBeenFocused(false); // 레슨이 바뀔 때 마다 처음 터치 상태를 리셋해요
-      setShowScratchCompareModal(false); // 비교 사전 모달 상태도 초기화해요
-    }
-  }, [lessonId]);
 
   // 각 레벨별로 지안이가 현재 배우는 파이썬 주문이 스크래치의 어떤 블록과 1:1로 매핑되는지 보여주는 지도사전이에요!
   const scratchRelationMap = {
@@ -193,9 +169,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   ];
 
   // 지안이가 처음 코드창을 탭(터치)했을 때 커서를 자동으로 끝으로 보내주는 마법 기능이에요!
-  const handleEditorFocus = (e) => {
-    setIsEditorFocused(true);
-    if (!hasBeenFocused) {
+  const handleEditorFocus = (e) => {    if (!hasBeenFocused) {
       setHasBeenFocused(true);
       const textarea = e.target;
       setTimeout(() => {
@@ -227,9 +201,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
   };
 
   // 코드창 바깥을 터치했다가 다시 터치할 때도 동작할 수 있도록 포커스가 풀리면 초기화해줘요
-  const handleEditorBlur = () => {
-    setIsEditorFocused(false);
-    setHasBeenFocused(false);
+  const handleEditorBlur = () => {    setHasBeenFocused(false);
   };
 
   // Insert code helper
@@ -690,7 +662,7 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
       )}
 
       {/* Main Workspace Layout (50:50 Side-by-Side balanced layout) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", flexGrow: 1, alignItems: "start" }}>
+      <div className="workspace-layout" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "24px", flexGrow: 1, alignItems: "start" }}>
         
         {/* LEFT COLUMN: Mission Instructions, Toggleable Hint, and Magic Keyboard */}
         <section style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
@@ -746,7 +718,6 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
             {/* 현재 레벨에서 배우는 파이썬 주문이 스크래치 어떤 블록과 같은지 한눈에 알려주는 알림 띠 */}
             {scratchRelationMap[lesson.id] && (
               <div style={{
-                background: "rgba(255, 255, 255, 0.03)",
                 border: "1.5px dashed rgba(189, 0, 255, 0.25)",
                 padding: "14px 18px",
                 borderRadius: "16px",
@@ -992,4 +963,8 @@ export default function Workspace({ lessonId, onBack, onCompleteLesson }) {
       </div>
     </div>
   );
+}
+
+export default function Workspace(props) {
+  return <WorkspaceContent key={props.lessonId ?? "sandbox"} {...props} />;
 }

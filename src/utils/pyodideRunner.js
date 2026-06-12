@@ -11,7 +11,7 @@ function loadPyodideScript() {
     const script = document.createElement("script");
     script.src = "https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js";
     script.onload = () => resolve();
-    script.onerror = (err) => reject(new Error("Pyodide CDN 로딩 실패: 인터넷 연결을 확인해주세요."));
+    script.onerror = () => reject(new Error("Pyodide CDN 로딩 실패: 인터넷 연결을 확인해주세요."));
     document.head.appendChild(script);
   });
 }
@@ -48,12 +48,12 @@ export function translateError(errorMsg) {
 
   if (errStr.includes("SyntaxError")) {
     if (errStr.includes("EOL while scanning string literal") || errStr.includes("unterminated string literal")) {
-      return `글자 양쪽에 큰따옴표(\"\")가 짝을 이루고 있지 않아요! 글자는 꼬옥 따옴표 쌍을 맞춰 감싸주세요.`;
+      return `글자 양쪽에 큰따옴표("")가 짝을 이루고 있지 않아요! 글자는 꼬옥 따옴표 쌍을 맞춰 감싸주세요.`;
     }
     if (errStr.includes("expected ':'")) {
       return `앗! 조건문(if)이나 반복문(for) 끝에 마법 콜론 기호 ':'가 빠진 것 같아요. 줄 끝에 콜론을 넣어보세요!`;
     }
-    return `마법 주문(코드)에 글자나 쉼표가 잘못 들어간 곳이 보여요. 괄호 ()와 따옴표 \"\" 쌍이 딱 맞는지 꼼꼼히 확인해봐요!`;
+    return `마법 주문(코드)에 글자나 쉼표가 잘못 들어간 곳이 보여요. 괄호 ()와 따옴표 "" 쌍이 딱 맞는지 꼼꼼히 확인해봐요!`;
   }
 
   if (errStr.includes("IndentationError")) {
@@ -99,11 +99,11 @@ export async function runPythonCode(code, onStdout) {
     },
     show_cat: () => {
       // Direct print ASCII cat drawing to console stdout
-      const catAscii = `
-  /\\_/\   
- ( o.o )  
-  > ^ <   🐾 야옹! 지안 탐험가님, 우주 아기 고양이를 무사히 구조했습니다!
-      `;
+      const catAscii = [
+        "  /\\_/\\",
+        " ( o.o )",
+        "  > ^ <   야옹! 지안 탐험가가 우주 아기 고양이를 무사히 구조했습니다!"
+      ].join("\n");
       if (onStdout) {
         onStdout(catAscii);
       }
