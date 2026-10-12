@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { lessons } from "../data/lessons";
+import { getLesson, getLessonNumber, getNextLessonId } from "../data/curriculum";
 import { audioSynth } from "../utils/audioSynth";
 
 export default function MiniGameContainer({ lessonId, onClose }) {
-  const lesson = lessons.find((l) => l.id === lessonId);
+  const lesson = getLesson(lessonId);
   const miniGame = lesson ? lesson.miniGame : null;
-  const spellingLessonIds = [1, 2, 23, 25, 26, 28];
-  const isSpellingGame = miniGame?.type === "balloon-pop" && spellingLessonIds.includes(lessonId);
+  // 풍선 게임은 두 가지: 철자를 순서대로 터트리는 spell, 정답 풍선을 골라 터트리는 pick
+  const isSpellingGame = miniGame?.type === "balloon-pop" && miniGame.mode === "spell";
+  const neededPops = miniGame?.answers?.length || 1;
+  const hasNextLesson = getNextLessonId(lessonId) !== null;
   const defenseOptions = miniGame?.defenseOptions || [
     { type: "string", label: '💬 글자 대포 [ " " ] 발사', className: "btn-cyan" },
     { type: "number", label: "🧮 숫자 대포 [ 123 ] 발사", className: "btn-pink" }
@@ -38,7 +40,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 2. 디펜스 게임 관련 상태들
   const [enemyX, setEnemyX] = useState(100); // 적의 가로 위치 %
-  const [currentEnemyIdx, setCurrentEnemyIdx] = useState(0);  const [defenseFeedback, setDefenseFeedback] = useState("바이러스를 요격할 대포를 준비하세요!");
+  const [currentEnemyIdx, setCurrentEnemyIdx] = useState(0);
+  const [defenseFeedback, setDefenseFeedback] = useState("바이러스를 요격할 대포를 준비하세요!");
   const [projectiles, setProjectiles] = useState([]);
   const [blasts, setBlasts] = useState([]);
   const [baseRecoil, setBaseRecoil] = useState(false);
@@ -57,7 +60,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
   const [laserBeamActive, setLaserBeamActive] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
 
-  // 5. [개편] 조건 실드 디펜스 게임 관련 상태들 (기존 피하기 게임 대체)  const [currentDodgeIdx, setCurrentDodgeIdx] = useState(0); // 현재 맞추어야 할 조건 인덱스
+  // 5. [개편] 조건 실드 디펜스 게임 관련 상태들 (기존 피하기 게임 대체)
+  const [currentDodgeIdx, setCurrentDodgeIdx] = useState(0); // 현재 맞추어야 할 조건 인덱스
   const [obstacleY, setObstacleY] = useState(0); // 운석의 Y 좌표
   const [dodgeFeedback, setDodgeFeedback] = useState(""); // 정답/오답 결과 설명문 피드백
   const [dodgeHit, setDodgeHit] = useState(false); // 오답 판정 시 충격 및 무적 프레임 활성화 여부
@@ -90,7 +94,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     setLaserBeamActive(false);
     setApiConnected(false);
     
-    // 실드 디펜스 관련 상태 리셋    setCurrentDodgeIdx(0);
+    // 실드 디펜스 관련 상태 리셋
+    setCurrentDodgeIdx(0);
     setObstacleY(0);
     setDodgeFeedback("");
     setDodgeHit(false);
@@ -155,7 +160,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 풍선 터트리기 초기화 (정답 풍선 + 가짜 방해 풍선 혼합)
   const initializeBalloons = () => {
-    const rawBalloons = miniGame.balloons || [];
+    const rawBalloons = miniGame.balloons || miniGame.answers || [];
     
     // 1. 진짜 정답 풍선들 생성
     const correctItems = rawBalloons.map((val, idx) => ({
@@ -180,23 +185,9 @@ export default function MiniGameContainer({ lessonId, onClose }) {
           candidates.splice(randIdx, 1);
         }
       }
-    } else if (lessonId === 3) {
-      // 수식 더하기/빼기 방해 풍선
-      fakeValues = ["4+6", "12-3", "8+1"];
-    } else if (lessonId === 10) {
-      // 별 그리기 방해 풍선 (터트리면 안 되는 해골이나 폭탄)
-      fakeValues = ["💀", "💣", "🚫"];
-    } else if (lessonId === 13) {
-      // 곱셈 수식 방해 풍선 (15가 아닌 오답들)
-      fakeValues = ["5*2", "20/4", "10+4"];
-    } else if (lessonId === 15) {
-      // 문자열 반복 방해 풍선
-      fakeValues = ['"호"*4', '"호호호"*2', '"호"-3'];
-    } else if (lessonId === 21) {
-      // 리스트 인덱싱 방해 풍선
-      fakeValues = ["fruits[3]", "fruits[-1]", "fruits[99]"];
     } else {
-      fakeValues = ["x", "z", "q"];
+      // 레슨 데이터에 정의된 방해 풍선
+      fakeValues = miniGame.decoys || [];
     }
 
     // 가짜 풍선 데이터 생성
@@ -482,20 +473,9 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         isCorrect = true;
       }
     } 
-    // 2. 특정 정답 매칭 게임 (3, 13, 15, 21단계)
-    else if (lessonId === 3) {
-      if (balloon.value === "5+7") isCorrect = true;
-    } else if (lessonId === 13) {
-      // 15가 되는 수식은 셋 다 정답 처리
-      if (["5*3", "30/2", "10+5"].includes(balloon.value)) isCorrect = true;
-    } else if (lessonId === 15) {
-      if (balloon.value === '"호"*3' || balloon.value === "'호'*3") isCorrect = true;
-    } else if (lessonId === 21) {
-      if (balloon.value === "fruits[1]") isCorrect = true;
-    }
-    // 3. 단순 개수 터트리기 (10단계)
-    else if (lessonId === 10) {
-      if (balloon.value === "★") isCorrect = true;
+    // 2. 정답 풍선 고르기 게임
+    else if ((miniGame.answers || []).includes(balloon.value)) {
+      isCorrect = true;
     }
 
     if (isCorrect) {
@@ -515,12 +495,10 @@ export default function MiniGameContainer({ lessonId, onClose }) {
         if (nextIdx >= miniGame.word.length) {
           handleGameSuccess(nextIdx);
         }
-      } else if ([3, 13, 15, 21].includes(lessonId)) {
-        handleGameSuccess();
-      } else if (lessonId === 10) {
+      } else {
         const nextScore = score + 1;
         setScore(nextScore);
-        if (nextScore >= 3) {
+        if (nextScore >= neededPops) {
           handleGameSuccess();
         }
       }
@@ -538,7 +516,8 @@ export default function MiniGameContainer({ lessonId, onClose }) {
 
   // 2. 디펜스 게임 대포 발사 컨트롤러
   const handleDefenseShoot = (type) => {
-    if (projectiles.length > 0 || gameWon || enemyHit) return;    setBaseRecoil(true);
+    if (projectiles.length > 0 || gameWon || enemyHit) return;
+    setBaseRecoil(true);
     setMuzzleFlash(true);
     
     setTimeout(() => setBaseRecoil(false), 400);
@@ -657,10 +636,10 @@ export default function MiniGameContainer({ lessonId, onClose }) {
     }
   };
 
-  const handleClaimBadge = () => {
+  const handleClaimBadge = (goNext = false) => {
     audioSynth.playBadge();
     setTimeout(() => {
-      onClose(true); // 배지 획득 완료 후 대시보드 복귀
+      onClose(true, goNext); // 배지 획득 후 지도 또는 다음 단계로 이동
     }, 400);
   };
 
@@ -685,7 +664,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
       <header className="glass-panel" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 24px", borderColor: "rgba(255, 0, 127, 0.3)" }}>
         <div>
           <span style={{ fontSize: "0.9rem", color: "#ff007f", fontWeight: "bold" }}>
-            LEVEL {lesson.id} • 복습 우주 미니게임
+            {getLessonNumber(lesson.id)}단계 • 복습 미니게임
           </span>
           <h2 style={{ fontSize: "1.8rem", color: "white" }}>{miniGame.title}</h2>
         </div>
@@ -815,7 +794,7 @@ export default function MiniGameContainer({ lessonId, onClose }) {
             {/* ===================== GAME 1: BALLOON POP ===================== */}
             {miniGame.type === "balloon-pop" && (
               <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
-                {/* 단어 스펠링 빌더 인디케이터 (1, 2, 23, 25, 26, 28단계) */}
+                {/* 단어 스펠링 빌더 인디케이터 */}
                 {isSpellingGame && (
                   <div style={{ display: "flex", gap: "8px", background: "rgba(0,0,0,0.3)", padding: "12px 30px", borderRadius: "16px" }}>
                     {miniGame.word.split("").map((c, i) => (
@@ -834,15 +813,15 @@ export default function MiniGameContainer({ lessonId, onClose }) {
                   </div>
                 )}
 
-                {lessonId === 3 && (
+                {!isSpellingGame && miniGame.target && (
                   <div style={{ fontSize: "1.25rem", color: "#ffd700", fontWeight: "bold" }}>
-                    목표 수치: <span style={{ fontSize: "1.6rem", borderBottom: "2px solid #ffd700" }}>{miniGame.word}</span>
+                    목표: <span style={{ fontSize: "1.6rem", borderBottom: "2px solid #ffd700" }}>{miniGame.target}</span>
                   </div>
                 )}
 
-                {lessonId === 10 && (
+                {!isSpellingGame && neededPops > 1 && (
                   <div style={{ fontSize: "1.25rem", color: "#00f0ff", fontWeight: "bold" }}>
-                    터트린 별 풍선: <span style={{ fontSize: "1.6rem" }}>{score} / 3 개</span> 🎈
+                    찾은 정답 풍선: <span style={{ fontSize: "1.6rem" }}>{score} / {neededPops} 개</span> 🎈
                   </div>
                 )}
 
@@ -1568,22 +1547,27 @@ export default function MiniGameContainer({ lessonId, onClose }) {
               lineHeight: "1.5"
             }}>
               🤖 "삐-빅! 지안 탐험가님이 기계를 완벽하게 지켜내고 조종했어요!<br />
-              배지 장식장에 이쁜 훈장이 생겼으니, 어서 지도로 가볼까요?"
+              배지 장식장에 예쁜 배지가 생겼어요. 다음 행성으로 가 볼까요?"
             </div>
 
-            <button 
-              onClick={handleClaimBadge}
-              className="btn-cosmic btn-star animate-pulse-cyan"
-              style={{
-                padding: "16px 40px",
-                fontSize: "1.3rem",
-                fontWeight: "900",
-                width: "100%",
-                maxWidth: "320px"
-              }}
-            >
-              🎖️ 배지 획득하고 지도로 가기
-            </button>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", justifyContent: "center", width: "100%" }}>
+              {hasNextLesson && (
+                <button
+                  onClick={() => handleClaimBadge(true)}
+                  className="btn-cosmic btn-star animate-pulse-cyan"
+                  style={{ padding: "16px 32px", fontSize: "1.2rem", fontWeight: "900", minWidth: "240px" }}
+                >
+                  🚀 배지 받고 다음 단계로
+                </button>
+              )}
+              <button
+                onClick={() => handleClaimBadge(false)}
+                className={`btn-cosmic ${hasNextLesson ? "btn-outline" : "btn-star animate-pulse-cyan"}`}
+                style={{ padding: "16px 32px", fontSize: "1.2rem", fontWeight: "900", minWidth: "240px" }}
+              >
+                🗺️ 배지 받고 지도로 가기
+              </button>
+            </div>
           </div>
         )}
       </section>

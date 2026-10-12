@@ -1,8 +1,19 @@
 import { useState, useEffect, useRef } from "react";
-import { ArrowLeft, Play, RefreshCw, Terminal, HelpCircle, BookOpen } from "lucide-react";
+import { ArrowLeft, ArrowRight, Play, RefreshCw, Terminal, HelpCircle, BookOpen, Gamepad2 } from "lucide-react";
 import { runPythonCode, initPyodide } from "../utils/pyodideRunner";
 import { audioSynth } from "../utils/audioSynth";
-import { lessons } from "../data/lessons";
+import { getChapterOfLesson, getLesson, getLessonNumber, getNextLessonId, getPrevLessonId } from "../data/curriculum";
+
+// 단계별로 지안이가 적던 코드를 저장해 두었다가 다시 들어오면 이어서 쓸 수 있게 해요.
+const codeStorageKey = (lessonId) => `jian_code_${lessonId}`;
+
+const readSavedCode = (lessonId) => {
+  try {
+    return localStorage.getItem(codeStorageKey(lessonId));
+  } catch {
+    return null;
+  }
+};
 
 // Extract comment instructions and clean code from starterCode
 const getCleanedStarter = (rawCode) => {
@@ -24,7 +35,37 @@ const getCleanedStarter = (rawCode) => {
   };
 };
 
-function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
+// 마법 퀵 키보드: 태블릿처럼 Tab 키가 없어도 들여쓰기를 넣을 수 있어요.
+// back 은 입력 후 커서를 몇 글자 앞으로 보낼지예요. (예: 따옴표 안쪽)
+const quickKeys = [
+  { label: "⇥ 들여쓰기", text: "    ", color: "#ffd700" },
+  { label: "↵ 줄바꿈", text: "\n", color: "#ffd700" },
+  { label: 'print("✍️")', text: 'print("")', back: 2, color: "#00f0ff" },
+  { label: '" " 따옴표', text: '""', back: 1 },
+  { label: "( )", text: "()", back: 1 },
+  { label: "[ ]", text: "[]", back: 1 },
+  { label: ":", text: ":" },
+  { label: "= 담기", text: " = " },
+  { label: "== 같니?", text: " == " },
+  { label: "+", text: " + " },
+  { label: "-", text: " - " },
+  { label: "*", text: " * " },
+  { label: ">", text: " > " },
+  { label: "<", text: " < " },
+  { label: "if", text: "if ", color: "#ff007f" },
+  { label: "else:", text: "else:", color: "#ff007f" },
+  { label: "elif", text: "elif ", color: "#ff007f" },
+  { label: "for 반복", text: "for i in range(5):", color: "#bd00ff" },
+  { label: "while", text: "while ", color: "#bd00ff" },
+  { label: "break", text: "break", color: "#bd00ff" },
+  { label: "def", text: "def ", color: "#9966ff" },
+  { label: "True", text: "True", color: "#10b981" },
+  { label: "False", text: "False", color: "#10b981" },
+  { label: "magic.show_cat()", text: "magic.show_cat()", color: "#ffd700" },
+  { label: "magic.get_weather()", text: "magic.get_weather()", color: "#ffd700" }
+];
+
+function WorkspaceContent({ lessonId, isCompleted, onBack, onOpenLesson, onLessonSolved, onPlayGame }) {
   const isSandbox = lessonId === 0;
 
   const lesson = isSandbox 
@@ -37,15 +78,21 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
           "자유롭게 마법 명령을 적고 [주문 외우기]를 눌러 실행해봐요!",
           "예: print('우주 고양이 만세!')",
           "예: print(magic.get_weather())",
+          "예: for i in range(3):  →  다음 줄에 Tab 누르고 print(\"★\")",
           "예: magic.show_cat()"
         ],
         starterCode: "# 지안이의 자유 파이썬 연습장\nprint(\"안녕 지안! 어떤 마법을 부려볼까요?\")\n",
         hints: { default: "지안이가 적고 싶은 글자를 print() 괄호 안에 넣어서 마음껏 출력해 보세요!" }
       }
-    : lessons.find((l) => l.id === lessonId);
+    : getLesson(lessonId);
+
+  const chapter = isSandbox ? null : getChapterOfLesson(lessonId);
+  const lessonNumber = isSandbox ? 0 : getLessonNumber(lessonId);
+  const prevLessonId = isSandbox ? null : getPrevLessonId(lessonId);
+  const nextLessonId = isSandbox ? null : getNextLessonId(lessonId);
 
   const { comments: starterComments, cleanCode: cleanStarterCode } = getCleanedStarter(lesson?.starterCode);
-  const [code, setCode] = useState(cleanStarterCode);
+  const [code, setCode] = useState(() => readSavedCode(lessonId) ?? cleanStarterCode);
   const [stdout, setStdout] = useState("");
   const [error, setError] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
@@ -56,11 +103,23 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
   
   // UI & UX States
   const [showHint, setShowHint] = useState(false);
-  const [showStoryModal, setShowStoryModal] = useState(true); // 첫 진입시 스토리 팝업 기본 노출
+  const [showStoryModal, setShowStoryModal] = useState(!isCompleted); // 아직 안 끝낸 단계는 이야기 팝업부터 보여줘요
+  const [failCount, setFailCount] = useState(0); // 실패한 횟수 (2번 이상이면 정답 예시를 볼 수 있어요)
+  const [errorHint, setErrorHint] = useState(""); // 에러 종류에 맞춘 이 단계 전용 힌트
+  const [showSolution, setShowSolution] = useState(false);
   const [hasBeenFocused, setHasBeenFocused] = useState(false); // 처음 터치할 때 커서 이동을 제어하는 상태
   const [showScratchCompareModal, setShowScratchCompareModal] = useState(false); // 스크래치 비교 사전 모달 표시 여부
 
   const editorRef = useRef(null);
+
+  // 코드가 바뀔 때마다 저장해요.
+  useEffect(() => {
+    try {
+      localStorage.setItem(codeStorageKey(lessonId), code);
+    } catch {
+      // 저장 공간을 쓸 수 없어도 코딩은 계속할 수 있어요.
+    }
+  }, [lessonId, code]);
 
   // Initialize Pyodide
   useEffect(() => {
@@ -88,17 +147,17 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
     3: { block: "[ (5) + (3) ] 연산", color: "#59c059", text: "초록색 연산 방에 들어있던 더하기(+), 빼기(-) 계산 블록과 똑같아요!" },
     4: { block: "[ (score) 를 (10) 으로 정하기 ]", color: "#ff8c1a", text: "주황색 변수 카테고리의 [변수 값을 정하기] 블록과 똑같아요!" },
     5: { block: "[ (안녕) 과 (지안) 결합하기 ]", color: "#59c059", text: "글자 조각을 풀칠하듯 길게 이어붙이는 [글자 결합하기] 연산 블록과 똑같아요!" },
-    6: { block: "[ (대답) 을 (음식) 으로 정하기 ]", color: "#ff8c1a", text: "입력창에서 지안이가 대답한 글자를 변수 상자에 대입해 보관하는 것과 같아요!" },
+    6: { block: "[ (음식) 을 (피자) 로 정하기 ]", color: "#ff8c1a", text: "변수 블록을 여러 개 만들어 각각 다른 값을 담아 두는 것과 똑같아요!" },
     7: { block: "[ (10) > (5) ] 연산", color: "#59c059", text: "크기를 비교해서 참(True)과 거짓(False)을 판단하는 비교 연산 블록과 똑같아요!" },
     8: { block: "[만약 <> 이라면] 제어", color: "#ffab19", text: "노란색 제어 카테고리의 [만약 조건이 참이라면] 실행하는 블록과 똑같아요!" },
     9: { block: "[만약 <> 이라면 / 아니면] 제어", color: "#ffab19", text: "조건이 맞을 때와 맞지 않을 때 두 갈래로 나뉘어 행동하는 제어 블록과 같아요!" },
     10: { block: "[ (10) 번 반복하기 ] 제어", color: "#ffab19", text: "정해진 횟수만큼 안쪽 명령을 뱅글뱅글 반복시키는 루프 제어 블록과 똑같아요!" },
-    11: { block: "[ magic.get_weather() ] 센서", color: "#4a90e2", text: "날씨나 외부 값을 알아내는 하늘색 센서(감지) 블록과 똑같아요!" },
-    12: { block: "[ magic.show_cat() ] 형태", color: "#9966ff", text: "스프라이트의 모양을 바꾸거나 화면에 그림을 그리는 보라색 형태 블록과 같아요!" },
-    13: { block: "[ (5) * (3) ] 연산", color: "#59c059", text: "더 정밀한 계산을 하는 초록색 곱하기(*) 및 나누기(/) 연산 블록과 똑같아요!" },
+    11: { block: "[ 대답 ] 감지", color: "#5cb1d6", text: "물어보고 받은 대답을 쓰는 하늘색 감지 블록처럼, 바깥에서 받아온 값을 써요!" },
+    12: { block: "[ 확장 기능 추가하기 ]", color: "#0fbd8c", text: "스크래치에서 펜·음악 확장 블록을 추가해 쓰는 것처럼, 미리 만들어진 마법 명령을 불러 써요!" },
+    13: { block: "[ (5) * (3) ] 연산", color: "#59c059", text: "초록색 연산 카테고리의 곱하기(*) 블록과 똑같아요!" },
     14: { block: "[ (10) 나누기 (3) 의 나머지 ]", color: "#59c059", text: "수학 계산 후 찌꺼기(나머지) 값만 구하는 초록색 나머지 연산 블록과 똑같아요!" },
-    15: { block: "[ (호) 과 (호) 결합하기 ]", color: "#59c059", text: "글자를 곱해서 풀풀 이어 붙이는 도장 찍기 연산 블록과 같아요!" },
-    16: { block: "[ < > 가 아니다 ] 연산", color: "#59c059", text: "조건이 거짓일 때 작동하는 초록색 논리 부정(~가 아니다) 블록과 같아요!" },
+    15: { block: "[ (하) 와 (하) 결합하기 ]", color: "#59c059", text: "결합하기 블록을 여러 번 겹쳐 쓰는 일을 한 번에 해 주는 도장 찍기예요!" },
+    16: { block: "[ < (5) = (3) > 가 아니다 ]", color: "#59c059", text: "[ = ] 블록을 [~가 아니다] 블록으로 감싼 것과 같아요!" },
     17: { block: "[ < > 그리고 < > ] 연산", color: "#59c059", text: "두 개의 조건이 둘 다 맞아야 통과하는 [~ 그리고 ~] 연산 블록과 똑같아요!" },
     18: { block: "[ < > 또는 < > ] 연산", color: "#59c059", text: "둘 중에 하나만 맞아도 관문을 통과하는 [~ 또는 ~] 연산 블록과 똑같아요!" },
     19: { block: "[만약 <> 이라면 / 아니면] 다중", color: "#ffab19", text: "제어 블록 안에 조건 블록을 여러 겹 겹쳐서 복잡한 판단을 내리는 구조와 같아요!" },
@@ -106,7 +165,7 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
     21: { block: "[ (과일) 의 (1) 번째 항목 ]", color: "#ff6680", text: "바구니의 순서 방 값을 가져와요. 파이썬은 0번 방부터 센다는 점만 달라요!" },
     22: { block: "[ (과일) 의 길이 ]", color: "#ff6680", text: "바구니 속에 보물 장난감이 총 몇 개 들어있는지 알아내는 리스트 세기 블록과 같아요!" },
     23: { block: "[ (사과) 을 (과일) 에 추가하기 ]", color: "#ff6680", text: "바구니 맨 뒤에 새 보물을 쏙 집어넣어 크기를 키우는 리스트 추가 블록과 같아요!" },
-    24: { block: "[ < > 까지 반복하기 ]", color: "#ffab19", text: "티켓이 남은 조건이 될 때까지 계속 뱅글뱅글 반복하는 제어 블록과 똑같아요!" },
+    24: { block: "[ < > 까지 반복하기 ]", color: "#ffab19", text: "주의! 스크래치는 조건이 '맞을 때까지', 파이썬 while 은 조건이 '맞는 동안' 반복해요. 반대예요!" },
     25: { block: "[ 이 스크립트 멈추기 ]", color: "#ffab19", text: "뱅글뱅글 돌던 반복 열차에서 강제로 멈추고 튀어나오는 탈출(break) 블록과 같아요!" },
     26: { block: "[ (인사하기) 정의하기 ]", color: "#9966ff", text: "보라색 나만의 블록 만들기 카테고리의 [블록 정의하기] 마법과 똑같아요!" },
     27: { block: "[ (믹서기) 정의하기 (재료) ]", color: "#9966ff", text: "나만의 블록을 생성할 때 믹서기 재료(매개변수) 투입구를 만드는 것과 같아요!" },
@@ -153,7 +212,7 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
       desc: "같은 행동을 정해진 횟수만큼 반복해요. range(5)는 기계를 5바퀴 뱅글뱅글 돌려 별을 5개 그려냅니다."
     },
     {
-      category: " Basket 장난감 바구니 (리스트)",
+      category: "🧺 장난감 바구니 (리스트)",
       scratch: "[ (과일) 리스트 만들기 ]\n[ (과일) 의 (1) 번째 항목 ]",
       scratchColor: "#ff6680", // 리스트/데이터 분홍색
       python: "fruits = [\"사과\", \"바나나\"]\nfruits[0]",
@@ -169,7 +228,8 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
   ];
 
   // 지안이가 처음 코드창을 탭(터치)했을 때 커서를 자동으로 끝으로 보내주는 마법 기능이에요!
-  const handleEditorFocus = (e) => {    if (!hasBeenFocused) {
+  const handleEditorFocus = (e) => {
+    if (!hasBeenFocused) {
       setHasBeenFocused(true);
       const textarea = e.target;
       setTimeout(() => {
@@ -201,7 +261,8 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
   };
 
   // 코드창 바깥을 터치했다가 다시 터치할 때도 동작할 수 있도록 포커스가 풀리면 초기화해줘요
-  const handleEditorBlur = () => {    setHasBeenFocused(false);
+  const handleEditorBlur = () => {
+    setHasBeenFocused(false);
   };
 
   // Insert code helper
@@ -224,11 +285,20 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
     }, 0);
   };
 
+  const markFailure = (hint) => {
+    setFailCount((count) => count + 1);
+    setErrorHint(hint || "");
+    audioSynth.playError();
+    setIsSuccess(false);
+    setQuizSolved(false);
+  };
+
   const handleRunCode = async () => {
     if (isRunning) return;
     setIsRunning(true);
     setStdout("");
     setError(null);
+    setErrorHint("");
     audioSynth.playBeep(523.25, 0.08);
 
     const result = await runPythonCode(
@@ -240,54 +310,42 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
 
     setIsRunning(false);
 
-    if (result.success) {
-      if (isSandbox) {
+    if (isSandbox) {
+      if (result.success) {
         audioSynth.playCoin();
-        setIsSuccess(false);
-        return;
-      }
-
-      // Check validation
-      const isCorrect = lesson.validation(code, result.stdout);
-      if (isCorrect) {
-        if (!isSuccess) {
-          audioSynth.playSuccess(); // Play victory fanfare arpeggio
-        }
-        setIsSuccess(true);
-        setError(null); // 에러 초기화
-      } else {
-        if (isSuccess) {
-          // 이미 성공 상태라면 다른 코드로 자유롭게 연습하더라도 화면에 빨간 에러 메시지를 띄우지 않습니다.
-          setError(null);
-        } else {
-          setError("코드가 정상적으로 실행되었지만, 이 행성의 통과 조건을 만족하지 못했어요. 아래 [임무지침]에 나와있는 글자와 똑같이 나오도록 수정해볼까요?");
-          audioSynth.playError();
-          setIsSuccess(false);
-          setQuizSolved(false);
-        }
-      }
-    } else {
-      if (isSuccess) {
-        // 이미 한 번 성공했다면, 지안이가 자유롭게 바꾼 코드에 오타(문법 에러)가 나도 에러 팝업창을 띄우지 않습니다.
-        // 대신 지안이가 공부할 수 있도록 콘솔 검은 창에 친절하게 에러를 출력해 줍니다.
-        setStdout((prev) => prev + "⚠️ 파이디의 마법 에러 알림:\n" + result.error + "\n");
-        setError(null);
       } else {
         setError(result.error);
         audioSynth.playError();
-        setIsSuccess(false);
-        setQuizSolved(false);
       }
+      return;
+    }
+
+    if (result.success) {
+      if (lesson.validation(code, result.stdout)) {
+        if (!isSuccess) {
+          audioSynth.playSuccess();
+        }
+        setIsSuccess(true);
+      } else if (!isSuccess) {
+        setError("코드는 잘 실행됐어요! 그런데 아직 이번 임무와 결과가 달라요. 왼쪽 [임무 지침]을 다시 읽고, 결과 창에 무엇이 나왔는지 비교해 봐요.");
+        markFailure("");
+      }
+    } else if (isSuccess) {
+      // 이미 통과한 뒤 자유롭게 바꿔 보다가 난 에러는 결과 창에만 알려줘요.
+      setStdout((prev) => prev + "⚠️ 파이디의 에러 알림:\n" + result.error + "\n");
+    } else {
+      setError(result.error);
+      markFailure(lesson.hints?.[result.errorType]);
     }
   };
 
   const handleResetCode = () => {
     audioSynth.playBeep(300, 0.1);
     if (window.confirm("코드를 처음 상태로 되돌릴까요?")) {
-      const { cleanCode } = getCleanedStarter(lesson.starterCode);
-      setCode(cleanCode);
+      setCode(cleanStarterCode);
       setStdout("");
       setError(null);
+      setErrorHint("");
       setIsSuccess(false);
       setQuizSolved(false);
       setQuizError(false);
@@ -300,6 +358,7 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
       audioSynth.playCoin();
       setQuizSolved(true);
       setQuizError(false);
+      onLessonSolved(lesson.id);
     } else {
       audioSynth.playError();
       setQuizError(true);
@@ -307,13 +366,17 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
     }
   };
 
+  const goToLesson = (targetId) => {
+    if (!targetId) return;
+    audioSynth.playSelect();
+    onOpenLesson(targetId);
+  };
+
   // Safe hint text parser
   const getHintText = () => {
-    if (lesson && lesson.hints) {
-      const hintList = Object.values(lesson.hints);
-      if (hintList.length > 0) {
-        return hintList.join("\n\n"); // 모든 힌트 메시지를 줄바꿈으로 연결하여 노출
-      }
+    const hintList = Object.values(lesson?.hints || {});
+    if (hintList.length > 0) {
+      return hintList.map((hint) => `• ${hint}`).join("\n");
     }
     return "글자 양쪽에 꼭 큰따옴표(\"\")가 들어가는지 확인해 봐요!";
   };
@@ -390,11 +453,18 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
             
             <div>
               <span style={{ fontSize: "1rem", color: "#bd00ff", fontWeight: "bold" }}>
-                LEVEL {lesson.id} • {lesson.planet}
+                {lessonNumber}단계 • {chapter?.emoji} {chapter?.title} • {lesson.planet}
               </span>
               <h2 style={{ fontSize: "2.4rem", color: "white", marginTop: "4px" }}>
-                {lesson.title}
+                {lesson.emoji} {lesson.title}
               </h2>
+              {lesson.level === "도전" && (
+                <span className="level-tag" style={{ display: "inline-block", marginTop: "6px" }}>🔥 도전 단계 · 어려우면 건너뛰었다가 나중에 와도 돼요</span>
+              )}
+            </div>
+
+            <div style={{ background: "rgba(0, 240, 255, 0.08)", border: "1.5px solid rgba(0, 240, 255, 0.3)", borderRadius: "16px", padding: "12px 18px", color: "#00f0ff", fontWeight: 800, fontSize: "1.15rem" }}>
+              🎯 오늘의 목표: {lesson.goal}
             </div>
 
             <div style={{
@@ -542,32 +612,62 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
       )}
 
       {/* Workspace Header */}
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <header className="workspace-header">
         <button onClick={onBack} className="btn-cosmic btn-outline" style={{ padding: "10px 20px", fontSize: "1rem" }}>
-          <ArrowLeft size={18} /> 지도 화면으로 돌아가기
+          <ArrowLeft size={18} /> 행성 지도
         </button>
 
-        <div style={{ textAlign: "center" }}>
+        <div style={{ textAlign: "center", minWidth: 0 }}>
           <span style={{ color: "#bd00ff", fontSize: "1rem", fontWeight: "bold" }}>
-            {isSandbox ? "FREE SPACE" : `LEVEL ${lesson.id} • ${lesson.planet}`}
+            {isSandbox ? "FREE SPACE" : `${lessonNumber}단계 • ${chapter?.emoji} ${chapter?.title}`}
+            {!isSandbox && isCompleted && <span style={{ color: "#10b981" }}> • ✅ 완료한 단계</span>}
           </span>
-          <h2 style={{ fontSize: "2.2rem", color: "white", marginTop: "2px" }}>{lesson.title}</h2>
+          <h2 style={{ fontSize: "2.2rem", color: "white", marginTop: "2px", lineHeight: 1.15 }}>
+            {!isSandbox && lesson.emoji} {lesson.title}
+          </h2>
         </div>
 
-        {/* Re-read Story Button */}
         {!isSandbox ? (
-          <button 
-            onClick={() => {
-              audioSynth.playBeep(660, 0.08);
-              setShowStoryModal(true);
-            }} 
-            className="btn-cosmic btn-outline" 
-            style={{ padding: "10px 20px", fontSize: "1.05rem", color: "#00f0ff", borderColor: "#00f0ff" }}
-          >
-            <BookOpen size={18} /> 설명 팝업 다시보기
-          </button>
+          <div className="workspace-nav">
+            <button
+              onClick={() => goToLesson(prevLessonId)}
+              disabled={!prevLessonId}
+              className="btn-cosmic btn-outline"
+              style={{ padding: "10px 14px", fontSize: "0.95rem", opacity: prevLessonId ? 1 : 0.4 }}
+              title="이전 단계"
+            >
+              <ArrowLeft size={16} /> 이전
+            </button>
+            <button
+              onClick={() => goToLesson(nextLessonId)}
+              disabled={!nextLessonId}
+              className="btn-cosmic btn-outline"
+              style={{ padding: "10px 14px", fontSize: "0.95rem", opacity: nextLessonId ? 1 : 0.4 }}
+              title="다음 단계"
+            >
+              다음 <ArrowRight size={16} />
+            </button>
+            <button
+              onClick={() => {
+                audioSynth.playBeep(660, 0.08);
+                setShowStoryModal(true);
+              }}
+              className="btn-cosmic btn-outline"
+              style={{ padding: "10px 14px", fontSize: "0.95rem", color: "#00f0ff", borderColor: "#00f0ff" }}
+            >
+              <BookOpen size={16} /> 이야기
+            </button>
+            <button
+              onClick={() => onPlayGame(lesson.id)}
+              className="btn-cosmic btn-outline"
+              style={{ padding: "10px 14px", fontSize: "0.95rem", color: "#f9a8d4", borderColor: "#f9a8d4" }}
+              title="복습 미니게임"
+            >
+              <Gamepad2 size={16} /> 게임
+            </button>
+          </div>
         ) : (
-          <div style={{ width: "160px" }} />
+          <div />
         )}
       </header>
 
@@ -591,7 +691,7 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
               <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                 <span style={{ fontSize: "1.8rem" }}>🤖❓</span>
                 <strong style={{ fontSize: "1.3rem", color: "#ffd700" }}>
-                  코딩 통과! 미니게임으로 출발하기 전, 파이디의 마법 퀴즈를 맞춰보세요!
+                  코딩 통과! 마지막으로 파이디의 퀴즈를 맞혀 봐요!
                 </strong>
               </div>
               
@@ -625,7 +725,7 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
               </div>
               {quizError && (
                 <span style={{ color: "#ef4444", fontSize: "0.95rem", marginLeft: "38px", fontWeight: "bold" }}>
-                  오답이에요! 파이디의 이야기를 천천히 떠올려보고 다시 선택해봐요!
+                  아쉬워요! 임무 지침을 다시 떠올려 보고 다른 답을 골라 봐요!
                 </span>
               )}
             </div>
@@ -639,23 +739,38 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
               flexWrap: "wrap",
               gap: "20px"
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px", flex: 1, minWidth: "260px" }}>
                 <span style={{ fontSize: "2.5rem" }}>🎉⭐</span>
                 <div>
-                  <strong style={{ fontSize: "1.4rem", color: "#00f0ff" }}>퀴즈와 미션을 모두 해결했어요! (별 연료 +1 확보)</strong>
-                  <p style={{ color: "#e2e8f0", fontSize: "1.1rem", marginTop: "4px", lineHeight: "1.6" }}>
-                    🤖 <strong>파이디:</strong> "지안 탐험가님 정말 최고예요! 이제 파이썬 코드 창에서 글자나 숫자를 마음대로 바꾸고 다시 실행해보며 **자유롭게 마법 연습**을 즐겨보세요! 준비가 다 되면 우측의 **미니게임 버튼**을 꾹 눌러 다음 행성으로 출발해봐요! 🚀"
+                  <strong style={{ fontSize: "1.4rem", color: "#00f0ff" }}>임무 완료! 별 연료를 얻었어요!</strong>
+                  <p style={{ color: "#e2e8f0", fontSize: "1.05rem", marginTop: "4px", lineHeight: "1.6" }}>
+                    🤖 <strong>파이디:</strong> "{lesson.quiz.feedback}" 코드 창에서 숫자나 글자를 바꿔 보며 더 연습해도 좋아요!
                   </p>
                 </div>
               </div>
 
-              <button
-                onClick={() => onCompleteLesson(lesson.id)}
-                className="btn-cosmic btn-pink animate-pulse-cyan"
-                style={{ padding: "16px 36px", fontSize: "1.2rem", fontWeight: "900" }}
-              >
-                🎮 복습 미니게임 하러가기
-              </button>
+              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                <button
+                  onClick={() => onPlayGame(lesson.id)}
+                  className="btn-cosmic btn-pink animate-pulse-cyan"
+                  style={{ padding: "14px 26px", fontSize: "1.1rem", fontWeight: "900" }}
+                >
+                  🎮 복습 미니게임
+                </button>
+                {nextLessonId ? (
+                  <button
+                    onClick={() => goToLesson(nextLessonId)}
+                    className="btn-cosmic btn-cyan"
+                    style={{ padding: "14px 26px", fontSize: "1.1rem", fontWeight: "900" }}
+                  >
+                    다음 단계로 <ArrowRight size={18} />
+                  </button>
+                ) : (
+                  <button onClick={onBack} className="btn-cosmic btn-cyan" style={{ padding: "14px 26px", fontSize: "1.1rem", fontWeight: "900" }}>
+                    🎓 행성 지도로
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -671,7 +786,7 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
           <div className="glass-panel" style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "16px", borderColor: "rgba(255, 0, 127, 0.25)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <h3 style={{ fontSize: "1.6rem", color: "#ff007f", margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-                🛸 이번 임무 임무지침
+                🛸 임무 지침
               </h3>
               
               <div style={{ display: "flex", gap: "8px" }}>
@@ -783,6 +898,34 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
               <p style={{ fontSize: "1.08rem", color: "#fef08a", lineHeight: "1.6", whiteSpace: "pre-wrap", margin: "8px 0 0 0" }}>
                 {getHintText()}
               </p>
+              {!isSandbox && lesson.solution && (
+                failCount >= 2 || isCompleted ? (
+                  <div style={{ marginTop: "12px" }}>
+                    <button
+                      onClick={() => {
+                        audioSynth.playSelect();
+                        setShowSolution(!showSolution);
+                      }}
+                      className="btn-cosmic btn-outline"
+                      style={{ padding: "8px 16px", fontSize: "0.95rem", borderColor: "#ffd700", color: "#ffd700" }}
+                    >
+                      🙋 {showSolution ? "정답 예시 접기" : "정답 예시 보기"}
+                    </button>
+                    {showSolution && (
+                      <>
+                        <div className="solution-box">{lesson.solution}</div>
+                        <p style={{ color: "#fde68a", fontSize: "0.95rem", marginTop: "8px" }}>
+                          복사하지 말고 한 글자씩 직접 따라 적어 봐요. 손으로 적어야 기억에 남아요! ✍️
+                        </p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ color: "#fde68a", fontSize: "0.9rem", marginTop: "10px", opacity: 0.85 }}>
+                    🙋 두 번 도전해 보고도 어려우면 여기서 정답 예시를 볼 수 있어요. (지금 {failCount}번 도전)
+                  </p>
+                )
+              )}
             </div>
           )}
 
@@ -792,17 +935,16 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
               ⚡ 마법 퀵 키보드 (클릭하면 바로 코드가 적혀요!)
             </h4>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-              <button onClick={() => handleInsertCode("print(\"\")", 2)} className="magic-key-btn" style={{ borderColor: "#00f0ff", padding: "8px 14px", fontSize: "1.05rem" }}>print("✍️")</button>
-              <button onClick={() => handleInsertCode("\"\"", 1)} className="magic-key-btn" style={{ padding: "8px 14px", fontSize: "1.05rem" }}>"글자 따옴표"</button>
-              <button onClick={() => handleInsertCode(" + ", 0)} className="magic-key-btn" style={{ padding: "8px 14px", fontSize: "1.05rem" }}>+</button>
-              <button onClick={() => handleInsertCode(" - ", 0)} className="magic-key-btn">-</button>
-              <button onClick={() => handleInsertCode(" = ", 0)} className="magic-key-btn">= (상자에 담기)</button>
-              <button onClick={() => handleInsertCode(":", 0)} className="magic-key-btn">:</button>
-              <button onClick={() => handleInsertCode("if ", 0)} className="magic-key-btn" style={{ color: "#ff007f", padding: "8px 14px", fontSize: "1.05rem" }}>if (만약)</button>
-              <button onClick={() => handleInsertCode("else:\n    ", 0)} className="magic-key-btn" style={{ color: "#ff007f", padding: "8px 14px", fontSize: "1.05rem" }}>else (아니면)</button>
-              <button onClick={() => handleInsertCode("for i in range(5):\n    ", 0)} className="magic-key-btn" style={{ color: "#bd00ff", padding: "8px 14px", fontSize: "1.05rem" }}>for (반복)</button>
-              <button onClick={() => handleInsertCode("magic.get_weather()", 0)} className="magic-key-btn" style={{ borderColor: "#ffd700", color: "#ffd700", padding: "8px 14px", fontSize: "1.05rem" }}>magic.get_weather()</button>
-              <button onClick={() => handleInsertCode("magic.show_cat()", 0)} className="magic-key-btn" style={{ borderColor: "#ffd700", color: "#ffd700", padding: "8px 14px", fontSize: "1.05rem" }}>magic.show_cat()</button>
+              {quickKeys.map((key) => (
+                <button
+                  key={key.label}
+                  onClick={() => handleInsertCode(key.text, key.back || 0)}
+                  className="magic-key-btn"
+                  style={{ padding: "8px 14px", fontSize: "1.05rem", ...(key.color ? { color: key.color, borderColor: key.color } : {}) }}
+                >
+                  {key.label}
+                </button>
+              ))}
             </div>
           </div>
         </section>
@@ -925,12 +1067,6 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
 
             <div style={{ padding: "20px", flexGrow: 1, background: "rgba(5, 6, 20, 0.65)", overflowY: "auto" }}>
               <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-                {stdout && (
-                  <div style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", color: "#10b981", fontSize: "1.25rem", lineHeight: "1.45" }}>
-                    {stdout}
-                  </div>
-                )}
-
                 {error && (
                   <div style={{
                     background: "rgba(239, 68, 68, 0.06)",
@@ -944,9 +1080,32 @@ function WorkspaceContent({ lessonId, onBack, onCompleteLesson }) {
                     <div style={{ color: "#f87171", fontWeight: "900", fontSize: "1.05rem", display: "flex", alignItems: "center", gap: "6px" }}>
                       ⚠️ 파이디의 에러 해결 도우미
                     </div>
-                    <div style={{ color: "#fca5a5", fontSize: "1rem", lineHeight: "1.5" }}>
+                    <div style={{ color: "#fca5a5", fontSize: "1.05rem", lineHeight: "1.55", whiteSpace: "pre-wrap" }}>
                       {error}
                     </div>
+                    {errorHint && (
+                      <div style={{ color: "#fef08a", fontSize: "1rem", lineHeight: "1.5", borderTop: "1px dashed rgba(255, 215, 0, 0.3)", paddingTop: "8px" }}>
+                        💡 이번 행성 힌트: {errorHint}
+                      </div>
+                    )}
+                    {!isSandbox && failCount >= 2 && !showHint && (
+                      <button
+                        onClick={() => {
+                          audioSynth.playBeep(900, 0.05);
+                          setShowHint(true);
+                        }}
+                        className="btn-cosmic btn-outline"
+                        style={{ alignSelf: "flex-start", padding: "6px 14px", fontSize: "0.9rem", borderColor: "#ffd700", color: "#ffd700" }}
+                      >
+                        <HelpCircle size={15} /> 힌트와 정답 예시 보기
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {stdout && (
+                  <div style={{ whiteSpace: "pre-wrap", fontFamily: "monospace", color: "#10b981", fontSize: "1.25rem", lineHeight: "1.45" }}>
+                    {stdout}
                   </div>
                 )}
 

@@ -1,16 +1,62 @@
-# React + Vite
+# 지안이의 우주 파이썬 탐험대 🚀
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+초등학교 2학년 지안이가 로봇 친구 **파이디**와 함께 30개 행성을 탐험하며 파이썬 기초를 배우는 웹 앱입니다.
+브라우저 안에서 진짜 파이썬(Pyodide)이 실행되므로 설치 없이 바로 코딩할 수 있습니다.
 
-Currently, two official plugins are available:
+## 실행 방법
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev      # 개발 서버
+npm run build    # 배포용 빌드 (dist/)
+npm run lint
+```
 
-## React Compiler
+> 파이썬 엔진(Pyodide)은 처음 실행 시 jsDelivr CDN에서 내려받기 때문에 인터넷 연결이 필요합니다.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 학습 흐름 (한 단계)
 
-## Expanding the ESLint configuration
+1. **이야기 팝업** – 오늘의 목표 한 줄 확인
+2. **임무 지침 + 코드 창** – 직접 코드를 적거나, 주어진 코드를 고쳐 보며(예측 → 실행 → 수정) 배우기
+3. **실행 → 퀴즈** – 통과하면 개념 확인 퀴즈, 맞히면 ⭐ 별 연료 획득(=단계 완료)
+4. **복습 미니게임(선택)** – 클리어하면 🏅 배지 획득
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+막혔을 때 도움 장치:
+- 에러 메시지를 초등학생 눈높이 말로 바꾸고, **몇 번째 줄**인지 알려 줍니다.
+- 에러 종류에 맞춘 **그 단계 전용 힌트**를 함께 보여 줍니다.
+- **두 번 실패**하면 힌트 패널에서 **정답 예시**를 볼 수 있습니다(자동 입력 없이 직접 따라 적기).
+- 무한 루프가 생겨도 파이디가 자동으로 멈춰 브라우저가 멈추지 않습니다.
+- 태블릿처럼 Tab 키가 없는 기기를 위해 퀵 키보드에 `⇥ 들여쓰기` 버튼이 있습니다.
+
+## 자유롭게 오가기
+
+- **모든 단계가 처음부터 열려 있습니다.** 잠금 없이 어느 행성이든 골라서 시작할 수 있습니다.
+- 지도 화면의 **행성계 바로가기**, 각 단계의 **이전/다음** 버튼, 카드의 **🎮 게임** 버튼으로 어디든 이동합니다.
+- **추천 단계**(아직 안 끝낸 첫 단계)와 **마지막에 본 단계 이어하기**를 제공합니다.
+- 단계마다 적던 코드는 자동 저장되어 다시 들어오면 그대로 이어서 쓸 수 있습니다.
+
+## 커리큘럼 (10개 행성계 · 30단계)
+
+쉬운 개념에서 어려운 개념으로, 앞에서 배운 것을 뒤에서 다시 쓰도록 배치했습니다.
+🔥 표시는 초2 수준보다 한 걸음 앞선 **도전 단계**로, 건너뛰었다가 나중에 해도 됩니다.
+
+| 행성계 | 단계 | 배우는 것 | 교과 연계 포인트 |
+| --- | --- | --- | --- |
+| 🗣️ 말하기 | 1–2 | `print`, 글자와 숫자 구분 | 스크래치 [말하기] 블록 |
+| 🧮 계산 | 3–5 | `+ -`, `*`, 🔥`// %` | 2학년 덧셈·뺄셈·곱셈 / 3학년 나눗셈 미리보기 |
+| 📦 상자 | 6–9 | 변수, 글자 이어 붙이기, 글자 반복 | 스크래치 변수 블록 |
+| 📡 마법 통신 | 10–11 | 미리 만든 명령 불러 쓰기(`magic.show_cat()`, `magic.get_weather()`) | 스크래치 확장 기능 |
+| ⚖️ 참·거짓 | 12–15 | `> < ==`, `!=`, `and`, `or` | 2학년 수의 크기 비교(>, <) |
+| 🚦 갈림길 | 16–18 | `if`, `if-else`, 🔥`elif` | 스크래치 [만약 ~라면 / 아니면] |
+| 🌀 반복 | 19–21 | `for`, 🔥`while`, 🔥`break` | 스크래치 [반복하기] (while 은 [~까지 반복]과 반대!) |
+| 🧺 바구니 | 22–26 | 리스트, 0번 방, `len`, `append`, `for`로 꺼내기 | 스크래치 리스트 |
+| 🛠️ 나만의 주문 | 27–29 | `def`, 🔥매개변수, 🔥`return` | 스크래치 [나만의 블록] |
+| 🎓 졸업 | 30 | 🔥 리스트 + for + if-else 종합 작품 | — |
+
+> 레슨 데이터는 `src/data/lessons.js`, 배우는 순서와 행성계 묶음은 `src/data/curriculum.js`에 있습니다.
+> 레슨 `id`는 저장된 학습 기록과 연결되어 있으니 바꾸지 말고, 순서를 바꾸고 싶으면 `curriculum.js`만 수정하세요.
+
+## 보호자 메뉴
+
+- 학습 기록(완료 단계, 배지, 저장된 코드, 미니게임 기록)은 **이 브라우저의 localStorage**에만 저장됩니다.
+- 초기화할 때는 아이가 바로 풀기 어려운 **두 자리 × 한 자리 곱셈 문제**로 보호자 확인을 합니다.
